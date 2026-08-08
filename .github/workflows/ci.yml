@@ -9,6 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
@@ -16,9 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      # Upgrading pip first keeps the audit focused on this project's dependency
-      # tree rather than failing on CVEs in the packaging tooling itself.
-      - run: pip install -U pip
+      # Current packaging tools keep audit focused on real dependencies
+      - run: pip install -U pip setuptools
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest
