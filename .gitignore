@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Fixtures are generated, not authored — generate_fixtures.py is the source of truth.
+tests/fixtures/*.pdf

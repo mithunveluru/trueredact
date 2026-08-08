@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redaction-xray"
+version = "0.1.0"
+description = "Offline PDF redaction-forensics CLI: detects text hidden under opaque shapes."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["pdf", "redaction", "forensics", "security", "privacy", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Legal Industry",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+    # Hard-pinned deliberately: detection correctness depends on MuPDF's paint-order
+    # and geometry behaviour, so a floating version could silently change verdicts.
+    "pymupdf==1.28.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+redaction-xray = "redaction_xray.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
