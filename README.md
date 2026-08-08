@@ -1,4 +1,4 @@
-# Redaction X-Ray
+# TrueRedact
 
 An offline CLI that detects **fake PDF redactions** — the common failure where an
 opaque black box is drawn *over* sensitive text instead of removing it, leaving the
@@ -29,10 +29,10 @@ Runs in under a second.
 ## Usage
 
 ```bash
-redaction-xray scan file.pdf                 # human-readable summary
-redaction-xray scan file.pdf --json out.json # machine-readable report
-redaction-xray scan file.pdf --html out.html # self-contained visual report
-redaction-xray scan file.pdf -v              # list every page, including clean ones
+trueredact scan file.pdf                 # human-readable summary
+trueredact scan file.pdf --json out.json # machine-readable report
+trueredact scan file.pdf --html out.html # self-contained visual report
+trueredact scan file.pdf -v              # list every page, including clean ones
 ```
 
 The HTML report is one file with no external dependencies — inline CSS,

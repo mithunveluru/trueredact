@@ -1,7 +1,7 @@
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.core.loader import LoadError, load
+from trueredact.core.loader import LoadError, load
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ import subprocess
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.cli import (
+from trueredact.cli import (
     EXIT_CLEAN,
     EXIT_ERROR,
     EXIT_LEAK,
@@ -26,7 +26,7 @@ def pdf(tmp_path):
 def test_installed_entry_point_help_exits_zero():
     """Covers the console-script wiring, which in-process tests cannot reach."""
     result = subprocess.run(
-        ["redaction-xray", "--help"], capture_output=True, text=True, check=False
+        ["trueredact", "--help"], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0
     assert "scan" in result.stdout

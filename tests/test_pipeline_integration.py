@@ -7,10 +7,10 @@ extraction in front of it feeds the algorithm what it expects, on actual PDFs.
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.core.detector import detect_document
-from redaction_xray.core.extractor import extract_document
-from redaction_xray.core.loader import load
-from redaction_xray.core.models import Verdict
+from trueredact.core.detector import detect_document
+from trueredact.core.extractor import extract_document
+from trueredact.core.loader import load
+from trueredact.core.models import Verdict
 
 
 def scan(tmp_path, pdf_bytes, name="doc.pdf"):

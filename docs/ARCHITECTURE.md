@@ -1,4 +1,4 @@
-# Redaction X-Ray — Architecture
+# TrueRedact — Architecture
 
 > See [PROJECT-PLAN.md](./PROJECT-PLAN.md) for scope, [TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md) for implementation-level detail (schemas, algorithm pseudocode, repo layout).
 
@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    User[User: PDF file] --> CLI[CLI: redaction-xray scan]
+    User[User: PDF file] --> CLI[CLI: trueredact scan]
     CLI --> Loader[PDF Loader]
     Loader --> Extractor[Content Extractor]
     Extractor --> TextSpans[Text Spans<br/>bbox + paint order]
@@ -74,7 +74,7 @@ There is no client/server boundary, no database, and no network egress at any po
 
 ## Database
 
-**Not applicable for MVP.** The tool is stateless by design: one PDF in, one report out, nothing retained between runs. Adding a database — even SQLite — before there is a concrete, real requirement for cross-run history would be exactly the kind of unrequested complexity this blueprint exists to prevent. If batch-scan history becomes a real need later, the natural shape is a single local SQLite file (`~/.redaction-xray/history.db`, one `scans` table) — intentionally not designed now, since designing storage before there's a real consumer of the stored data is guessing. See [TECHNICAL-DESIGN.md § Future Scope](./TECHNICAL-DESIGN.md#future-scope-explicitly-deferred).
+**Not applicable for MVP.** The tool is stateless by design: one PDF in, one report out, nothing retained between runs. Adding a database — even SQLite — before there is a concrete, real requirement for cross-run history would be exactly the kind of unrequested complexity this blueprint exists to prevent. If batch-scan history becomes a real need later, the natural shape is a single local SQLite file (`~/.trueredact/history.db`, one `scans` table) — intentionally not designed now, since designing storage before there's a real consumer of the stored data is guessing. See [TECHNICAL-DESIGN.md § Future Scope](./TECHNICAL-DESIGN.md#future-scope-explicitly-deferred).
 
 ## APIs / Interfaces
 

@@ -13,9 +13,9 @@ import pymupdf
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.core.detector import detect_document, detect_page
-from redaction_xray.core.extractor import extract_document, extract_page
-from redaction_xray.core.models import Verdict
+from trueredact.core.detector import detect_document, detect_page
+from trueredact.core.extractor import extract_document, extract_page
+from trueredact.core.models import Verdict
 
 
 def content(pdf_bytes, page_number=1):
@@ -142,7 +142,7 @@ def test_unreliability_is_decided_by_the_error_channel_not_by_message_text():
     worst bug in this project. Nothing in the extractor may inspect message
     wording to reach a verdict.
     """
-    from redaction_xray.core import extractor
+    from trueredact.core import extractor
 
     source = inspect.getsource(extractor)
     body = source[source.index("def extract_page") :]
@@ -176,7 +176,7 @@ def test_diagnostic_capture_windows_do_not_overlap_across_threads():
     sometimes reproduces makes for a test that only sometimes tests anything.
     This one fails deterministically if the lock is removed.
     """
-    from redaction_xray.core.extractor import _captured_errors, _mupdf_errors
+    from trueredact.core.extractor import _captured_errors, _mupdf_errors
 
     first_inside = threading.Event()
     second_attempted = threading.Event()
@@ -215,7 +215,7 @@ def test_diagnostic_capture_windows_do_not_overlap_across_threads():
 
 def test_a_leak_on_an_unreliable_page_is_reported_alongside_the_uncertainty():
     """Salvaged evidence is kept: reporting only UNCERTAIN would hide a true positive."""
-    from redaction_xray.core.models import PageContent, ShapeObject, TextSpan
+    from trueredact.core.models import PageContent, ShapeObject, TextSpan
 
     page = PageContent(
         page_number=1,

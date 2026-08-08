@@ -219,7 +219,7 @@ def render(report: ScanReport, doc: pymupdf.Document) -> str:
 
     body = [
         "<main>",
-        "<h1>Redaction X-Ray report</h1>",
+        "<h1>TrueRedact report</h1>",
         (
             f"<p class='sub'>{_esc(report.file_path)} &middot; {report.page_count} "
             f"page(s) &middot; generated {_esc(report.generated_at)}</p>"
@@ -273,7 +273,7 @@ def render(report: ScanReport, doc: pymupdf.Document) -> str:
     return (
         "<!doctype html>\n<html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        f"<title>Redaction X-Ray — {_esc(Path(report.file_path).name)}</title>"
+        f"<title>TrueRedact — {_esc(Path(report.file_path).name)}</title>"
         f"<style>{_STYLE}</style></head><body>"
         + "".join(body)
         + "</body></html>\n"

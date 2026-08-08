@@ -1,4 +1,4 @@
-# Redaction X-Ray — Project Plan
+# TrueRedact — Project Plan
 
 > Read this document first. It links to [ARCHITECTURE.md](./ARCHITECTURE.md), [DEVELOPMENT-PLAN.md](./DEVELOPMENT-PLAN.md), [TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md), and [DECISIONS.md](./DECISIONS.md) for detail.
 
@@ -29,7 +29,7 @@
 ## 3. MVP Scope
 
 **Must exist for the first working, demoable version:**
-- `redaction-xray scan <file.pdf>` — prints human-readable findings, sets exit code (`0` clean, `1` leak found, `2` error).
+- `trueredact scan <file.pdf>` — prints human-readable findings, sets exit code (`0` clean, `1` leak found, `2` error).
 - Core detection algorithm: per-page paint-order overlap between opaque shapes and text spans.
 - `--json <path>` — machine-readable findings report.
 - `--html <path>` — single self-contained HTML report with page previews and the leaked region highlighted.

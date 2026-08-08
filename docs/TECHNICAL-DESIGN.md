@@ -1,13 +1,13 @@
-# Redaction X-Ray — Technical Design
+# TrueRedact — Technical Design
 
 > Implementation-level reference. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the component-level view and [DECISIONS.md](./DECISIONS.md) for why key choices were made.
 
 ## Repository Structure
 
 ```text
-redaction-xray/
+trueredact/
 ├── docs/                        # this blueprint
-├── src/redaction_xray/
+├── src/trueredact/
 │   ├── __init__.py
 │   ├── cli.py                   # argparse entry point + orchestration
 │   └── core/
@@ -181,7 +181,7 @@ CREATE TABLE scans (
 ### CLI
 
 ```text
-redaction-xray scan <file.pdf>
+trueredact scan <file.pdf>
     [--json <path>]              write JSON report
     [--html <path>]              write HTML report
     [--max-pages N]               default 500

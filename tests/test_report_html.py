@@ -12,8 +12,8 @@ import pymupdf
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.cli import build_report
-from redaction_xray.core.report_html import render, write
+from trueredact.cli import build_report
+from trueredact.core.report_html import render, write
 
 
 class _WellFormed(HTMLParser):

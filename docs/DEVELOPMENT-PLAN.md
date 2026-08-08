@@ -1,4 +1,4 @@
-# Redaction X-Ray — Development Plan
+# TrueRedact — Development Plan
 
 > The most important document in this blueprint. Follow phases in order — each depends on the previous. See [TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md) for schemas/algorithm detail referenced below.
 
@@ -13,17 +13,17 @@
 **Tasks**
 1. Initialize repo with the structure in [TECHNICAL-DESIGN.md § Repository Structure](./TECHNICAL-DESIGN.md#repository-structure).
 2. `pyproject.toml` — package metadata, Python `>=3.11`, PyMuPDF as the sole runtime dependency, pytest/ruff as dev dependencies.
-3. `src/redaction_xray/cli.py` — stub `argparse` entry point: `redaction-xray scan <file>` prints "not implemented" and exits `0`.
+3. `src/trueredact/cli.py` — stub `argparse` entry point: `trueredact scan <file>` prints "not implemented" and exits `0`.
 4. `.github/workflows/ci.yml` — run `ruff check` + `pytest` on push/PR.
 5. `README.md` — one-paragraph project description + install/run instructions (fill in as later phases land).
 
-**Files.** `pyproject.toml`, `src/redaction_xray/__init__.py`, `src/redaction_xray/cli.py`, `.github/workflows/ci.yml`, `README.md`, `.gitignore`.
+**Files.** `pyproject.toml`, `src/trueredact/__init__.py`, `src/trueredact/cli.py`, `.github/workflows/ci.yml`, `README.md`, `.gitignore`.
 
-**Tests.** A single smoke test: `redaction-xray --help` exits `0`.
+**Tests.** A single smoke test: `trueredact --help` exits `0`.
 
 **Definition of Done.**
 - [x] `pip install -e .` succeeds in a clean virtualenv.
-- [x] `redaction-xray --help` runs.
+- [x] `trueredact --help` runs.
 - [x] CI is green on a pushed branch.
 
 **Dependencies.** None — this is the starting point.
@@ -43,7 +43,7 @@
 4. **Spike, not production code:** manually create 5 test PDFs, each with a black rectangle drawn over text, from 5 different producers (e.g. Microsoft Word export, Google Docs export, macOS Preview "Markup," LibreOffice export, and one hand-built with `reportlab`). Extract spans/shapes from each and manually confirm the paint-order signal is consistent and usable. `VALIDATION REQUIRED` — record findings directly in this file's Risks note or a `docs/spike-notes.md`.
 5. If the signal is *not* consistent across producers, stop and re-evaluate the algorithm approach (e.g., fall back to raw content-stream operator order parsing instead of relying on PyMuPDF's derived paint order) before proceeding to Phase 2.
 
-**Files.** `src/redaction_xray/core/models.py`, `core/loader.py`, `core/extractor.py`, `tests/test_loader.py`, `tests/test_extractor.py`, `tests/fixtures/generate_fixtures.py` (script to produce the 5 spike PDFs programmatically so they're reproducible, not hand-crafted one-offs).
+**Files.** `src/trueredact/core/models.py`, `core/loader.py`, `core/extractor.py`, `tests/test_loader.py`, `tests/test_extractor.py`, `tests/fixtures/generate_fixtures.py` (script to produce the 5 spike PDFs programmatically so they're reproducible, not hand-crafted one-offs).
 
 **Tests.** Loader: rejects non-PDF, encrypted PDF, oversized file, each with the correct `LoadError` variant. Extractor: given a hand-built single-shape/single-text-span PDF, returns exactly the expected `TextSpan`/`ShapeObject` with correct bbox and paint order.
 
@@ -78,7 +78,7 @@
 
 **Also settled by the Phase 1 spike, and required here:** `UNCERTAIN` on a `seqno` tie, `UNCERTAIN` on substantial image coverage, `UNCERTAIN` on a page with `PageContent.error` set. See [spike-notes.md](./spike-notes.md).
 
-**Files.** `src/redaction_xray/core/detector.py`, `tests/test_detector.py`, `tests/test_pipeline_integration.py`, fixture generator updates.
+**Files.** `src/trueredact/core/detector.py`, `tests/test_detector.py`, `tests/test_pipeline_integration.py`, fixture generator updates.
 
 **Tests.** This phase *is* mostly tests — see Tasks 3–4. Minimum bar: all three fixture classes produce the correct verdict with zero false positives/negatives.
 
@@ -95,7 +95,7 @@
 
 ## Phase 3 — CLI + JSON Report
 
-**Objective.** Wire the detection pipeline up to a real, usable command: `redaction-xray scan file.pdf [--json out.json]`.
+**Objective.** Wire the detection pipeline up to a real, usable command: `trueredact scan file.pdf [--json out.json]`.
 
 **Why now.** The algorithm is proven in isolation (Phase 2); this phase makes it usable and gives the first end-to-end demoable artifact.
 
@@ -105,13 +105,13 @@
 3. Wire `--json <path>`, `--max-pages`, `--max-file-size-mb`, `-v/--verbose` flags.
 4. Human-readable stdout formatting: per-finding page number, recovered text, confidence — plain text, no dependency on a TUI library.
 
-**Files.** `src/redaction_xray/cli.py` (rewrite), `core/report_json.py`, `tests/test_cli.py`, `tests/test_report_json.py`.
+**Files.** `src/trueredact/cli.py` (rewrite), `core/report_json.py`, `tests/test_cli.py`, `tests/test_report_json.py`.
 
 **Tests.** CLI end-to-end against each fixture class: correct exit code, correct JSON schema, correct stdout content (assert on key substrings, not exact formatting).
 
 **Definition of Done.**
-- [x] `redaction-xray scan fake_redacted.pdf` prints the recovered text and exits `1`.
-- [x] `redaction-xray scan clean.pdf` exits `0`.
+- [x] `trueredact scan fake_redacted.pdf` prints the recovered text and exits `1`.
+- [x] `trueredact scan clean.pdf` exits `0`.
 - [x] `--json` output validates against the documented schema.
 
 **Deviation.** A fourth exit code, `3`, was added for "completed, no leak, but some pages could not be audited" — see [DECISIONS.md](./DECISIONS.md). Three codes could not express the difference between "nothing suspicious" and "we could not check part of this", and ~19% of real-world pages fall in the latter bucket.
@@ -131,7 +131,7 @@
 2. Template: plain Python string templating (f-strings/`string.Template`) producing one self-contained HTML file with inlined CSS and base64-embedded page images — no external assets, no server. `IMPLEMENTATION DECISION`: revisit Jinja2 only if the template logic outgrows string substitution.
 3. Wire `--html <path>` flag in the CLI.
 
-**Files.** `src/redaction_xray/core/report_html.py`, `tests/test_report_html.py`.
+**Files.** `src/trueredact/core/report_html.py`, `tests/test_report_html.py`.
 
 **Tests.** Generated HTML is well-formed and contains the expected recovered-text string and an embedded image per finding (assert on HTML structure, not pixel-level image content).
 
@@ -164,7 +164,7 @@
 **Tests.** One test per new edge case added in Task 1; all previous tests still pass.
 
 **Definition of Done.**
-- [x] All edge-case fixtures pass with the correct verdict (19 fixtures, 125 tests).
+- [x] All edge-case fixtures pass with the correct verdict (19 fixtures, 128 tests).
 - [x] No known false positive/negative left unaddressed or undocumented — see the `KNOWN LIMITATION` list in [TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md#core-algorithm) and [spike-notes.md](./spike-notes.md).
 
 **Two bugs found by hunting rather than by confirming.** Written up in [spike-notes.md § Phase 5 Addendum](./spike-notes.md):
@@ -196,12 +196,12 @@
 **Tests.** None new — this phase is validation of what already exists, not new logic.
 
 **Definition of Done.**
-- [x] Fresh clone → `pip install` → demo script runs clean, no manual fixes needed. Verified in a clean-room copy (no `.git`, no `.venv`, no built fixtures) with a **non-editable** `pip install ".[dev]"`: console script on PATH, all 125 tests pass against the installed package, `./demo.sh` runs.
+- [x] Fresh clone → `pip install` → demo script runs clean, no manual fixes needed. Verified in a clean-room copy (no `.git`, no `.venv`, no built fixtures) with a **non-editable** `pip install ".[dev]"`: console script on PATH, all 128 tests pass against the installed package, `./demo.sh` runs.
 - [x] Demo dry-run completes in under 3 minutes — **0.6 seconds** for the automated portion.
 
 **Notes.**
 - `demo.sh` generates its fixtures from `generate_fixtures.py` at run time rather than using checked-in binaries, so the demo can never drift from what the test suite verifies. No `.pdf` files are committed.
-- `LICENSE` (MIT) added — declared in `pyproject.toml` since Phase 0 but the file was missing. **The copyright line reads "the redaction-xray authors" and should be replaced with a real name before publishing.**
+- `LICENSE` (MIT) added — declared in `pyproject.toml` since Phase 0 but the file was missing. **The copyright line reads "the trueredact authors" and should be replaced with a real name before publishing.**
 - PyPI publishing remains explicit Future scope; the package installs from source.
 
 **Dependencies.** Phase 5.

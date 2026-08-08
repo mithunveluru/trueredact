@@ -6,7 +6,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")"
 FIXTURES=tests/fixtures
-OUT="${TMPDIR:-/tmp}/redaction-xray-demo"
+OUT="${TMPDIR:-/tmp}/trueredact-demo"
 mkdir -p "$OUT"
 
 step() { printf '\n\033[1m=== %s\033[0m\n' "$1"; }
@@ -17,13 +17,13 @@ python "$FIXTURES/generate_fixtures.py" >/dev/null
 echo "generated $(ls "$FIXTURES"/*.pdf | wc -l) fixture PDFs"
 
 step "1. A clean document — nothing was ever redacted"
-run redaction-xray scan "$FIXTURES/clean.pdf"
+run trueredact scan "$FIXTURES/clean.pdf"
 
 step "2. Redacted properly — the text object was removed, then a box drawn"
-run redaction-xray scan "$FIXTURES/properly_redacted.pdf"
+run trueredact scan "$FIXTURES/properly_redacted.pdf"
 
 step "3. Redacted the way everyone does it — a black box drawn over live text"
-run redaction-xray scan "$FIXTURES/fake_redacted.pdf" --html "$OUT/report.html"
+run trueredact scan "$FIXTURES/fake_redacted.pdf" --html "$OUT/report.html"
 
 step "Proof: the 'redacted' text is still in the file"
 printf '\033[2m$ python -c "import pymupdf; print(pymupdf.open(%s)[0].get_text().strip())"\033[0m\n' \

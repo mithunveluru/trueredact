@@ -1,4 +1,4 @@
-# Redaction X-Ray — Final Engineering Review
+# TrueRedact — Final Engineering Review
 
 A senior-engineer review of the finished MVP, written to be defended rather than
 to sell. The short answer to "is this reliable enough for its intended use" is at
@@ -8,7 +8,7 @@ the bottom, and it is qualified.
 
 ## What was built
 
-A single offline Python CLI, ~1,300 lines of source and ~1,600 lines of tests.
+A single offline Python CLI, ~1,355 lines of source and ~1,658 lines of tests.
 
 ```text
 PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
@@ -18,14 +18,14 @@ PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
 | Module | Lines | Role |
 |---|---|---|
 | `core/loader.py` | 79 | open + validate, enforce caps before parsing |
-| `core/extractor.py` | 240 | PyMuPDF → `PageContent`; the only PDF-aware module |
+| `core/extractor.py` | 299 | PyMuPDF → `PageContent`; the only PDF-aware module |
 | `core/detector.py` | 291 | the algorithm; no I/O, no PyMuPDF import |
 | `core/models.py` | 148 | frozen dataclasses shared by both sides |
 | `core/report_json.py` | 61 | the external data contract |
 | `core/report_html.py` | 284 | self-contained visual report |
-| `cli.py` | 192 | argument parsing, orchestration, exit codes |
+| `cli.py` | 193 | argument parsing, orchestration, exit codes |
 
-125 tests, all passing; `ruff` clean. 19 fixtures, every one generated from source
+128 tests, all passing; `ruff` clean. 19 fixtures, every one generated from source
 code rather than committed as a binary.
 
 Delivered against the plan: detection, `--json`, `--html`, rotation, nested
@@ -70,7 +70,7 @@ false positives across 4,481 real pages.**
 pixel positions at all four rotations before the report code was written.
 
 **Packaging** was verified in a clean-room copy (no `.git`, no `.venv`, no built
-fixtures) with a non-editable `pip install`: console script on PATH, 125 tests pass
+fixtures) with a non-editable `pip install`: console script on PATH, 128 tests pass
 against the installed package, `demo.sh` runs in 0.6 s.
 
 ### What was NOT validated — read this before trusting the tool

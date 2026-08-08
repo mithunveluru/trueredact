@@ -2,7 +2,7 @@ import pymupdf
 import pytest
 from fixtures import generate_fixtures as fx
 
-from redaction_xray.core.extractor import extract_document, extract_page
+from trueredact.core.extractor import extract_document, extract_page
 
 
 def content(pdf_bytes: bytes, page_number: int = 1):

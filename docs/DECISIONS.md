@@ -1,4 +1,4 @@
-# Redaction X-Ray — Architecture Decision Records
+# TrueRedact — Architecture Decision Records
 
 Only decisions with real, debatable alternatives are recorded here. Trivial choices (test runner, `.gitignore` contents) are omitted deliberately.
 

@@ -33,7 +33,7 @@ prevent. See DECISIONS.md.
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="redaction-xray",
+        prog="trueredact",
         description="Detect text left extractable underneath 'redaction' shapes in a PDF.",
         epilog=(
             f"exit codes: {EXIT_CLEAN} no leak found, {EXIT_LEAK} leak found, "

@@ -6,7 +6,7 @@ fails, the bug is in extraction, not in the algorithm.
 
 import pytest
 
-from redaction_xray.core.detector import (
+from trueredact.core.detector import (
     CANDIDATE_MIN_AREA,
     COVERAGE_THRESHOLD,
     OPACITY_THRESHOLD,
@@ -14,7 +14,7 @@ from redaction_xray.core.detector import (
     detect_page,
     is_redaction_candidate,
 )
-from redaction_xray.core.models import (
+from trueredact.core.models import (
     ImageBox,
     PageContent,
     ShapeObject,

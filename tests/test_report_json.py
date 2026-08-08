@@ -1,13 +1,13 @@
 import json
 
-from redaction_xray.core.models import (
+from trueredact.core.models import (
     CoveredSpan,
     Finding,
     ScanReport,
     ShapeObject,
     Verdict,
 )
-from redaction_xray.core.report_json import dumps, to_dict, write
+from trueredact.core.report_json import dumps, to_dict, write
 
 
 def leak_finding():
