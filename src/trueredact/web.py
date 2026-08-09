@@ -136,6 +136,9 @@ button{font:inherit;font-size:.92rem;padding:.55rem 1rem;border-radius:7px;
        border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.link{background:none;border:none;color:var(--muted);text-decoration:underline;
+            padding:.35rem;font-size:.85rem;cursor:pointer}
+button.link:hover{color:var(--ink)}
 .filename{font-size:.85rem;color:var(--muted);margin:0 0 .75rem;word-break:break-all}
 [hidden]{display:none !important}
 </style></head><body>
@@ -152,6 +155,8 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
      computer and never sent anywhere.</p>
 
   <div id="result" role="status" aria-live="polite"></div>
+
+  <p class="note"><button id="quit" class="link">Quit TrueRedact</button></p>
 </main>
 <script>
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
@@ -215,6 +220,13 @@ async function scan(file) {
     show("error", "Could not check this file", String(e), [], file.name, false);
   }
 }
+
+document.getElementById("quit").onclick = async () => {
+  try { await fetch("/quit?t=" + encodeURIComponent(TOKEN), { method: "POST" }); } catch (e) {}
+  document.body.innerHTML =
+    '<main><h1>TrueRedact</h1>' +
+    '<p class="tag">Stopped. You can close this tab.</p></main>';
+};
 
 drop.onclick = () => input.click();
 drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
@@ -281,7 +293,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path != "/scan":
+        if parsed.path not in {"/scan", "/quit"}:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
@@ -289,6 +301,14 @@ class _Handler(BaseHTTPRequestHandler):
         supplied = urllib.parse.parse_qs(parsed.query).get("t", [""])[0]
         if not self.token or not secrets.compare_digest(supplied, self.token):
             self._json(HTTPStatus.FORBIDDEN, {"error": "invalid session token"})
+            return
+
+        if parsed.path == "/quit":
+            # Launched from a desktop icon there is no terminal to interrupt, so
+            # the page needs a way to stop the server. Shutdown runs on its own
+            # thread because it blocks until the serve loop exits.
+            self._json(HTTPStatus.OK, {"stopped": True})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
             return
 
         try:
@@ -356,8 +376,11 @@ def serve(
     server, url = build_server(
         port=port, max_pages=max_pages, max_file_size_mb=max_file_size_mb
     )
-    print(f"TrueRedact is running at {url}")
-    print("Nothing leaves this computer. Press Ctrl+C to stop.")
+    # Flushed explicitly: launched from a desktop entry stdout is not a terminal
+    # and would otherwise stay block-buffered, hiding the address a user needs if
+    # the browser does not open on its own.
+    print(f"TrueRedact is running at {url}", flush=True)
+    print("Nothing leaves this computer. Press Ctrl+C to stop.", flush=True)
     if open_browser:
         threading.Timer(0.3, webbrowser.open, args=(url,)).start()
     try:

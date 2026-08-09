@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="TrueRedact">
+  <rect x="11" y="5" width="42" height="54" rx="5" fill="#ffffff"
+        stroke="#c8cdd4" stroke-width="2"/>
+
+  <g fill="#aab1ba">
+    <rect x="19" y="15" width="26" height="3" rx="1.5"/>
+    <rect x="19" y="44" width="26" height="3" rx="1.5"/>
+    <rect x="19" y="51" width="16" height="3" rx="1.5"/>
+  </g>
+
+  <!-- text still present underneath the bar, showing through where it lifts -->
+  <g fill="#c0261c">
+    <rect x="19" y="27" width="9" height="4" rx="1"/>
+    <rect x="30" y="27" width="6" height="4" rx="1"/>
+    <rect x="38" y="27" width="7" height="4" rx="1"/>
+  </g>
+
+  <!-- the redaction bar, peeled back from the right -->
+  <path d="M17 23 h30 v12 h-30 z" fill="#1a1d21"/>
+  <path d="M35 23 h12 v12 h-12 z" fill="#1a1d21" opacity="0.18"/>
+  <path d="M35 23 v12" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="2 2"/>
+</svg>

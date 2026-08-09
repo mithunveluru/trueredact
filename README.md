@@ -13,9 +13,28 @@ Use it from a terminal, or drag a file onto a window.
 Python 3.11+. One runtime dependency (PyMuPDF), pinned.
 
 ```bash
+./install.sh
+```
+
+This installs the `trueredact` command for your user and adds a **TrueRedact**
+entry to your applications menu, so the drag-and-drop window can be opened
+without a terminal. Nothing is installed system-wide and nothing needs root.
+
+Uses `pipx` when available, otherwise a private environment under
+`~/.local/share/trueredact` — Debian and Ubuntu refuse user-site installs into
+the system Python (PEP 668), and a dedicated environment sidesteps that without
+touching it.
+
+Remove it again with `./install.sh --uninstall`.
+
+<details>
+<summary>Manual install instead</summary>
+
+```bash
 python -m venv .venv && source .venv/bin/activate
 pip install .                # or: pip install -e ".[dev]" to develop
 ```
+</details>
 
 ## Demo
 
@@ -30,6 +49,8 @@ Runs in under a second.
 
 ## The easy way: drag and drop
 
+Open **TrueRedact** from your applications menu, or run:
+
 ```bash
 trueredact ui
 ```
@@ -37,7 +58,8 @@ trueredact ui
 A window opens in your browser. Drop a PDF on it and you get a plain-English
 answer — *Not safe to send*, *Nothing hidden found*, or *Could not fully check
 this file* — plus the exposed text and a button to view the page with the leak
-highlighted, or save the full report.
+highlighted, or save the full report. **Quit TrueRedact** at the bottom stops it,
+so there is nothing left running afterwards.
 
 The file never leaves your computer: the page is served from `127.0.0.1` only, and
 the tool never makes an outbound connection to anything.

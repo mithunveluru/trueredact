@@ -157,6 +157,29 @@ def test_unauditable_file_is_not_called_clean(server):
     assert "could not" in data["headline"].lower()
 
 
+def test_quit_requires_the_token(server):
+    _, url = server
+    base, _ = base_and_token(url)
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        post(f"{base}/quit", b"")
+    assert exc.value.code == 403
+
+
+def test_quit_stops_the_server():
+    """Launched from a desktop icon there is no terminal to interrupt."""
+    srv, url = build_server(port=0)
+    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    thread.start()
+    base, token = base_and_token(url)
+
+    with post(f"{base}/quit?t={token}", b"") as response:
+        assert json.loads(response.read())["stopped"] is True
+
+    thread.join(timeout=5)
+    assert not thread.is_alive(), "server did not stop"
+    srv.server_close()
+
+
 def test_the_page_itself_is_served(server):
     _, url = server
     with urllib.request.urlopen(url, timeout=10) as response:
