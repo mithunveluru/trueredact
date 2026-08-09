@@ -67,6 +67,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="list every page, including clean ones, and show full tracebacks",
     )
+
+    ui = sub.add_parser(
+        "ui", help="open a drag-and-drop window for checking files without the terminal"
+    )
+    ui.add_argument(
+        "--port", type=int, default=0, help="port to listen on (default: pick a free one)"
+    )
+    ui.add_argument(
+        "--no-browser", action="store_true", help="print the address instead of opening it"
+    )
+    ui.add_argument(
+        "--max-pages",
+        type=int,
+        default=DEFAULT_MAX_PAGES,
+        help=f"refuse documents longer than this (default: {DEFAULT_MAX_PAGES})",
+    )
+    ui.add_argument(
+        "--max-file-size-mb",
+        type=int,
+        default=DEFAULT_MAX_FILE_SIZE_MB,
+        help=f"refuse files larger than this (default: {DEFAULT_MAX_FILE_SIZE_MB})",
+    )
     return parser
 
 
@@ -144,8 +166,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     # all. Its *warning* channel is separate, still prints, and is pure noise here:
     # 3.26% of real pages emit cosmetic font warnings the tool deliberately
     # ignores. Silenced unless the user asks to see them.
-    if not args.verbose:
+    if not getattr(args, "verbose", False):
         pymupdf.TOOLS.mupdf_display_warnings(False)
+
+    if args.command == "ui":
+        # Imported here so the common `scan` path does not pay for the server.
+        from . import web
+
+        return web.serve(
+            port=args.port,
+            open_browser=not args.no_browser,
+            max_pages=args.max_pages,
+            max_file_size_mb=args.max_file_size_mb,
+        )
 
     doc = None
     try:

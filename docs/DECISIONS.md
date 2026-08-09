@@ -212,12 +212,48 @@ The runtime binary makes zero network calls, ever. No telemetry, no crash report
 - Optional cloud-based processing for large files.
 
 ### Reason
-The strongest, simplest claim this tool can make is "it is architecturally incapable of leaking your document," which only holds if there is genuinely no code path that opens a socket. Any exception, even an "opt-in" one, weakens that claim and adds a security-relevant code path to review.
+The strongest, simplest claim this tool can make is "it is architecturally incapable of leaking your document," which only holds if there is genuinely no code path that reaches the network. Any exception, even an "opt-in" one, weakens that claim and adds a security-relevant code path to review.
 
 ### Trade-off
 No usage data to inform future prioritization; users must self-report issues via GitHub. Acceptable for a solo open-source tool at this scale.
 
+> **Amended when the local UI landed.** The original wording was "no code path that opens a socket." That remains true of `scan`, but `ui` binds a *listening* socket on loopback. The guarantee is now stated precisely: **the tool never initiates an outbound connection.** See the decision below.
+
 ---
+
+## Decision: a local drag-and-drop UI is worth one loopback socket
+
+### Context
+The CLI serves people who live in a terminal. The users who most need this tool — someone about to email a redacted contract — often do not. The HTML report was meant to cover them, but producing one still requires running a command.
+
+This was listed as future scope from the start, with a shape already sketched: single process, localhost only, one endpoint, no authentication.
+
+### Decision
+Add `trueredact ui`: a `http.server` on `127.0.0.1` with an ephemeral port, serving one page and one `POST /scan` endpoint. Drop a PDF, get a plain-English verdict. The browser is opened automatically. Built on the standard library, so the runtime dependency count stays at one.
+
+### Alternatives
+- **Flask/FastAPI.** Routing sugar for one endpoint, at the cost of doubling the dependency tree of a security tool. Rejected.
+- **A packaged desktop binary.** No Python needed, but adds per-OS build tooling and a release pipeline for an MVP.
+- **Do nothing; point people at the HTML report.** Keeps the no-socket property intact, but leaves the tool unusable by the people it is most for.
+- **`multipart/form-data` uploads.** Would need `cgi.FieldStorage`, removed in Python 3.13 — which CI tests. The page posts raw bytes instead, which is simpler and has no parsing surface at all.
+
+### Reason
+The usability gain is the difference between "a tool engineers run" and "a tool anyone can run", and the security cost is bounded and explicit rather than vague. What is given up is only the *phrasing* of the guarantee, not the substance: no document is ever transmitted anywhere.
+
+The socket is constrained on every axis that matters:
+
+| Control | Why |
+|---|---|
+| Bound to `127.0.0.1`, never `0.0.0.0` | Not reachable from the network at all |
+| `Host` header must be loopback | Blocks DNS rebinding, where a hostname resolving to 127.0.0.1 lets a remote page read responses through the browser |
+| Random per-run token required on `POST /scan` | Stops any other page in the browser from posting files to it |
+| Size cap enforced from `Content-Length` before the body is read | An oversized upload is refused, not buffered |
+| Upload written to a private temp dir, deleted after | The client's filename never builds a path |
+| `Content-Security-Policy: default-src 'none'` | The page cannot fetch anything even if markup were injected |
+| Per-request logging silenced | Document names are not ours to write to a terminal |
+
+### Trade-off
+A listening socket now exists, so the guarantee needs one more sentence to state than "it has no sockets." Anyone who wants the original property still has it: `scan` opens nothing. The UI is also threaded, which is what makes the extractor's diagnostics lock load-bearing rather than precautionary.
 
 ## Decision: no confidence score at all — report the measurements instead
 

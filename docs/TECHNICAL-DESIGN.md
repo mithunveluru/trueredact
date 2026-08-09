@@ -298,13 +298,14 @@ None. No network calls anywhere in the runtime pipeline (see [DECISIONS.md](./DE
 
 ## Security-Relevant Design
 
-This tool's core purpose is parsing untrusted, potentially adversarial PDF files — that surface must be treated carefully even though there is no network exposure:
+This tool's core purpose is parsing untrusted, potentially adversarial PDF files — that surface must be treated carefully even though there is no outbound network exposure:
 
 - **Resource caps before parsing:** file-size and page-count checked from the file header/metadata *before* PyMuPDF does real work, to bound worst-case processing time/memory on a pathological input.
 - **No active content execution:** the tool never evaluates embedded JavaScript, form actions, or launch actions — it only reads passive text/vector geometry.
 - **Per-page fault isolation:** a malformed content stream on one page is caught and skipped with a warning; it must not crash the whole scan (also a correctness requirement, not just security).
 - **Dependency hygiene:** PyMuPDF version pinned in `pyproject.toml`; `pip-audit` run in CI to catch known vulnerabilities in the dependency tree.
-- **No telemetry, no network calls** — the strongest security property this tool has is architectural: it is physically incapable of leaking the document it's analyzing, because it never opens a socket.
+- **No telemetry, no outbound calls** — the tool never initiates a connection to anything. `scan` opens no socket at all; `ui` binds one listening socket to `127.0.0.1` so a local browser can reach it, and even then nothing is sent outward.
+- **Local UI hardening:** loopback bind, `Host` header check against DNS rebinding, a random per-run token on `POST /scan`, size cap enforced from `Content-Length` before the body is read, uploads written to a private temp dir that is deleted afterwards, and `Content-Security-Policy: default-src 'none'`. See [DECISIONS.md](./DECISIONS.md).
 
 ## Error Handling
 

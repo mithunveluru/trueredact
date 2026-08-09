@@ -1,10 +1,12 @@
 # TrueRedact
 
-An offline CLI that detects **fake PDF redactions** — the common failure where an
+An offline tool that detects **fake PDF redactions** — the common failure where an
 opaque black box is drawn *over* sensitive text instead of removing it, leaving the
 text fully extractable. Reads the PDF's object structure, not its rendered pixels:
-every finding is a reproducible structural fact, not an inference. No network, no
-OCR, no AI.
+every finding is a reproducible structural fact, not an inference. No OCR, no AI,
+and nothing ever leaves your machine.
+
+Use it from a terminal, or drag a file onto a window.
 
 ## Install
 
@@ -26,7 +28,21 @@ properly, one redacted the way everyone actually does it — scans each, and the
 proves the point by dumping the "redacted" text straight back out of the file.
 Runs in under a second.
 
-## Usage
+## The easy way: drag and drop
+
+```bash
+trueredact ui
+```
+
+A window opens in your browser. Drop a PDF on it and you get a plain-English
+answer — *Not safe to send*, *Nothing hidden found*, or *Could not fully check
+this file* — plus the exposed text and a button to view the page with the leak
+highlighted, or save the full report.
+
+The file never leaves your computer: the page is served from `127.0.0.1` only, and
+the tool never makes an outbound connection to anything.
+
+## Usage from the terminal
 
 ```bash
 trueredact scan file.pdf                 # human-readable summary
@@ -87,7 +103,9 @@ before parsing begins, so a pathological file cannot hang the process.
   recoverable paint order, so we cannot tell whether the image is above or below.
 - Annotation-based redaction (`/Redact`, `/Square`) is not examined — only shapes
   drawn in the page content stream.
-- No network access, ever. See [docs/DECISIONS.md](./docs/DECISIONS.md).
+- No outbound network access, ever. `scan` opens no socket at all; `ui` listens on
+  `127.0.0.1` so your own browser can reach it, and sends nothing anywhere.
+  See [docs/DECISIONS.md](./docs/DECISIONS.md).
 
 **It finds the most common redaction mistake. It does not prove a document is
 safe.** A clean result means nothing suspicious was found, not that nothing is
