@@ -184,6 +184,46 @@ def _shape_findings(page: PageContent) -> tuple[list[Finding], set[int]]:
     return findings, accounted
 
 
+def _redaction_annot_findings(page: PageContent, accounted: set[int]) -> list[Finding]:
+    """Text under a `/Redact` annotation that was marked but never applied.
+
+    This needs no paint-order test, and that is not a shortcut: annotations are
+    painted after the entire content stream, so the annotation is above the text by
+    construction. Nor does it need the coverage/opacity filters that a drawn box
+    needs to distinguish a redaction from a table cell — a `/Redact` annotation is
+    the author saying "remove this region" in the file's own vocabulary. The text
+    still being extractable *is* the whole finding.
+
+    The repainted-text rule is deliberately not applied here either. That rule
+    exists to excuse presentation software rebuilding a slide over its own text;
+    nothing about an explicit removal mark is excused by the string appearing
+    elsewhere on the page.
+    """
+    findings = []
+    for box in page.redactions:
+        hidden = [
+            covered
+            for span in page.spans
+            if span.paint_order not in accounted
+            and (covered := _covered_span(span, box)) is not None
+        ]
+        if hidden:
+            accounted.update(span.paint_order for span in hidden)
+            findings.append(
+                Finding(
+                    page_number=page.page_number,
+                    verdict=Verdict.FAKE_REDACTION,
+                    reason=(
+                        f"{len(hidden)} text span(s) lie under a /Redact annotation "
+                        f"that was never applied — the region is marked for removal "
+                        f"and the text is still in the file"
+                    ),
+                    covered=tuple(hidden),
+                )
+            )
+    return findings
+
+
 def _image_findings(page: PageContent, accounted: set[int]) -> list[Finding]:
     """Text under a raster image: position is known, paint order is not.
 
@@ -254,6 +294,7 @@ def detect_page(page: PageContent) -> list[Finding]:
         ]
 
     findings, accounted = _shape_findings(page)
+    findings.extend(_redaction_annot_findings(page, accounted))
     findings.extend(_image_findings(page, accounted))
     if unreliable is not None:
         # Reported alongside any real findings, never instead of them: what we did

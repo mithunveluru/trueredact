@@ -73,19 +73,69 @@ def test_shaded_table_cells_under_their_own_text_are_clean():
 # --------------------------------------------------------------- cropped pages
 
 
-def test_cropped_page_reports_its_cropbox_dimensions():
-    """MuPDF reports coordinates relative to the crop origin, so the page size
-    must be the CropBox — using the MediaBox would describe a different space."""
-    page = content(fx.cropped_page())
-    assert (page.width, page.height) == (fx.PAGE_W - 40.0, fx.PAGE_H - 40.0)
-
-
 def test_cropped_page_still_detects_the_leak_with_shifted_coordinates():
+    """MuPDF reports coordinates relative to the crop origin, not the media one.
+    The shifted bbox below is what proves which space we are in."""
     (finding,) = scan(fx.cropped_page())
     assert finding.verdict is Verdict.FAKE_REDACTION
     assert finding.recovered_text == fx.SECRET
     # Everything shifted down-left by the 20pt crop origin.
     assert finding.shape.bbox == tuple(v - 20.0 for v in fx.COVER)
+
+
+# ------------------------------------------------------------ annotations
+
+
+def test_unapplied_redact_annotation_is_a_leak():
+    """The blind spot this path exists for: it paints nothing, so the shape
+    pipeline sees an entirely empty page and would report CLEAN."""
+    page = content(fx.redact_annotation())
+    assert page.shapes == (), "a /Redact annotation paints nothing — that is the point"
+    assert len(page.redactions) == 1
+
+    (finding,) = scan(fx.redact_annotation())
+    assert finding.verdict is Verdict.FAKE_REDACTION
+    assert finding.recovered_text == fx.SECRET
+    assert "/Redact" in finding.reason
+
+
+def test_applied_redact_annotation_is_clean():
+    """Applying the mark removes the text and the annotation together."""
+    page = content(fx.redact_annotation_applied())
+    assert page.redactions == ()
+
+    (finding,) = scan(fx.redact_annotation_applied())
+    assert finding.verdict is not Verdict.FAKE_REDACTION
+    assert fx.SECRET not in (finding.recovered_text or "")
+
+
+def test_square_annotation_cover_arrives_as_an_ordinary_shape():
+    """MuPDF flattens an annotation's appearance stream into get_drawings(), so a
+    /Square cover needs no annotation handling of its own. Pinned because that is
+    MuPDF's behaviour, not ours: if it ever changes, this fails instead of
+    quietly reporting a covered page as clean."""
+    page = content(fx.square_annotation_cover())
+    assert page.redactions == ()
+    assert len(page.shapes) == 1
+    assert page.shapes[0].fill_color == (0.0, 0.0, 0.0)
+
+    (finding,) = scan(fx.square_annotation_cover())
+    assert finding.verdict is Verdict.FAKE_REDACTION
+    assert finding.recovered_text == fx.SECRET
+
+
+def test_a_leak_is_not_reported_twice_when_a_shape_and_a_mark_agree():
+    """Acrobat-style marks often carry a drawn cover too. One span, one finding."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=fx.PAGE_W, height=fx.PAGE_H)
+    page.insert_text(fx.TEXT_ORIGIN, fx.SECRET, fontsize=fx.FONT_SIZE)
+    page.draw_rect(pymupdf.Rect(*fx.COVER), color=None, fill=fx.BLACK)
+    page.add_redact_annot(pymupdf.Rect(*fx.COVER))
+    data = doc.tobytes()
+    doc.close()
+
+    leaks = [f for f in scan(data) if f.verdict is Verdict.FAKE_REDACTION]
+    assert len(leaks) == 1, [f.reason for f in leaks]
 
 
 # ------------------------------------------------------- known limitation
@@ -219,8 +269,6 @@ def test_a_leak_on_an_unreliable_page_is_reported_alongside_the_uncertainty():
 
     page = PageContent(
         page_number=1,
-        width=600.0,
-        height=800.0,
         spans=(
             TextSpan(
                 bbox=(10.0, 5.0, 60.0, 15.0),

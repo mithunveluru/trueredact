@@ -181,6 +181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     doc = None
+    writing = "report"  # named by the block below, so an OSError says which one failed
     try:
         doc = load(
             args.pdf,
@@ -192,16 +193,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Written while the document is still open: HTML previews need to render
         # pages from it.
         if args.json:
+            writing = "JSON report"
             report_json.write(report, args.json)
             print(f"wrote JSON report to {Path(args.json)}")
         if args.html:
+            writing = "HTML report"
             report_html.write(report, doc, args.html)
             print(f"wrote HTML report to {Path(args.html)}")
     except LoadError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_ERROR
     except OSError as exc:
-        print(f"error: could not write report: {exc}", file=sys.stderr)
+        print(f"error: could not write the {writing}: {exc}", file=sys.stderr)
         return EXIT_ERROR
     except Exception as exc:  # noqa: BLE001 - never show a raw traceback by default
         if args.verbose:

@@ -66,11 +66,15 @@ class PageContent:
     """
 
     page_number: int
-    width: float
-    height: float
     spans: tuple[TextSpan, ...] = ()
     shapes: tuple[ShapeObject, ...] = ()
     images: tuple[ImageBox, ...] = ()
+    redactions: tuple[BBox, ...] = ()
+    """Bboxes of `/Redact` annotations still present on the page.
+
+    Bare boxes, with no paint order and no fill: annotations paint after the whole
+    content stream, so one is above the page's text by definition, and a `/Redact`
+    annotation paints nothing at all. Its mere presence is the evidence."""
     error: str | None = None
     """Set when extraction failed. Keeps "we could not read this page" distinct
     from "this page was empty" — the former must never be reported as clean."""

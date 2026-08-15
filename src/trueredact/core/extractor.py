@@ -232,6 +232,25 @@ def _images(page: pymupdf.Page):
         yield ImageBox(bbox=_bbox(info["bbox"]))
 
 
+def _redactions(page: pymupdf.Page):
+    """Bboxes of `/Redact` annotations still on the page.
+
+    A `/Redact` annotation is a *mark*, not a removal. Acrobat's "Mark for
+    Redaction" adds one and the text underneath stays in the file until "Apply
+    Redactions" runs — which deletes the text *and* the annotation. So one still
+    sitting here is direct evidence the removal never happened.
+
+    It needs its own extraction path because a `/Redact` annotation paints nothing:
+    measured, `get_drawings()` reports an empty list for a page carrying one, so
+    the shape pipeline cannot see it at any threshold. `/Square` annotations need
+    no such handling — MuPDF flattens their appearance stream into `get_drawings()`
+    with a correct `seqno`, so they already arrive as ordinary shapes (pinned by a
+    test, since that is MuPDF behaviour rather than a guarantee we control).
+    """
+    for annot in page.annots(types=[pymupdf.PDF_ANNOT_REDACT]):
+        yield _bbox(annot.rect)
+
+
 def extract_page(page: pymupdf.Page, page_number: int) -> PageContent:
     """Extract one page. A malformed page yields a PageContent carrying `error`.
 
@@ -240,27 +259,18 @@ def extract_page(page: pymupdf.Page, page_number: int) -> PageContent:
     like an empty (and therefore clean) page. The catch is broad on purpose —
     MuPDF surfaces malformed-stream failures as several unrelated exception types.
     """
-    # The CropBox, not the MediaBox: MuPDF reports coordinates relative to the crop
-    # origin, so a cropped page's spans and shapes live in this space, not the
-    # media one. Unrotated either way — see the module docstring.
-    crop = _bbox(page.cropbox)
-    width, height = crop[2] - crop[0], crop[3] - crop[1]
-
     try:
         with _mupdf_errors() as errors:
             content = PageContent(
                 page_number=page_number,
-                width=width,
-                height=height,
                 spans=tuple(_text_spans(page)),
                 shapes=tuple(_shapes(page)),
                 images=tuple(_images(page)),
+                redactions=tuple(_redactions(page)),
             )
     except Exception as exc:  # noqa: BLE001 - deliberate: see docstring
         return PageContent(
             page_number=page_number,
-            width=width,
-            height=height,
             error=f"{type(exc).__name__}: {exc}",
         )
 
@@ -289,8 +299,6 @@ def extract_document(doc: pymupdf.Document) -> list[PageContent]:
             pages.append(
                 PageContent(
                     page_number=index + 1,
-                    width=0.0,
-                    height=0.0,
                     error=f"could not load page: {type(exc).__name__}: {exc}",
                 )
             )

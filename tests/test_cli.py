@@ -104,8 +104,10 @@ def test_unwritable_report_destination_exits_two(pdf, tmp_path, capsys, flag):
     code = main(["scan", pdf("bad.pdf", fx.fake_redacted()), flag, str(missing)])
     err = capsys.readouterr().err
     assert code == EXIT_ERROR
-    assert "could not write report" in err
+    assert "could not write the" in err
     assert "no-such-dir" in err, "the message must name the path that failed"
+    # Both reports share one handler, so the message has to say which one it was.
+    assert flag.lstrip("-").upper() in err, "the message must name the failing format"
 
 
 def test_no_arguments_is_a_usage_error_not_a_crash():

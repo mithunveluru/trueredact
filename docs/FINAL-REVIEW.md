@@ -6,9 +6,38 @@ the bottom, and it is qualified.
 
 ---
 
+## Amendments since this review was written
+
+This document described the repository at the end of Phase 6. Four things have
+changed since, and leaving the original text standing would make it wrong:
+
+1. **The repository has been pushed.** It is no longer at zero commits with no
+   remote. "CI has never actually run" below is superseded — the workflow exists on
+   a pushed branch, though a green run has not been confirmed in this review.
+2. **A local drag-and-drop UI was built** (`src/trueredact/web.py`), which
+   "What should NOT be built yet" argued against. That argument is overturned, not
+   ignored: the audience it names — a non-technical user who cannot open a terminal
+   — could not reach the HTML report at all, because producing one requires the CLI.
+   The cost was held down to one stdlib-only module with no new dependency,
+   loopback-bound, token-authenticated, and `Host`-checked.
+3. **Unapplied `/Redact` annotations are now detected** — item 3 of "Next sensible
+   improvements". Measuring first halved the work: `/Square` covers turned out to
+   be detected already, because MuPDF flattens an annotation's appearance stream
+   into `get_drawings()` with a correct `seqno`. Only `/Redact` was genuinely
+   blind, and it paints nothing, so no shape threshold could ever have caught it.
+4. **`PageContent.width`/`height` were deleted** rather than given a consumer
+   (debt item 4), and the shared report-write error handler now names the failing
+   format (debt item 3).
+
+**The core caveat below is unchanged and still governs**: recall remains evidenced
+only synthetically. The `/Redact` work adds a real-world detection path but was
+still validated against PDFs this project generated.
+
+---
+
 ## What was built
 
-A single offline Python CLI, ~1,355 lines of source and ~1,658 lines of tests.
+A single offline Python tool, ~1,840 lines of source and ~1,667 lines of tests.
 
 ```text
 PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
@@ -18,14 +47,15 @@ PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
 | Module | Lines | Role |
 |---|---|---|
 | `core/loader.py` | 79 | open + validate, enforce caps before parsing |
-| `core/extractor.py` | 299 | PyMuPDF → `PageContent`; the only PDF-aware module |
-| `core/detector.py` | 291 | the algorithm; no I/O, no PyMuPDF import |
-| `core/models.py` | 148 | frozen dataclasses shared by both sides |
+| `core/extractor.py` | 307 | PyMuPDF → `PageContent`; the only PDF-aware module |
+| `core/detector.py` | 332 | the algorithm; no I/O, no PyMuPDF import |
+| `core/models.py` | 152 | frozen dataclasses shared by both sides |
 | `core/report_json.py` | 61 | the external data contract |
 | `core/report_html.py` | 284 | self-contained visual report |
-| `cli.py` | 193 | argument parsing, orchestration, exit codes |
+| `cli.py` | 229 | argument parsing, orchestration, exit codes |
+| `web.py` | 395 | loopback drag-and-drop UI; stdlib `http.server` only |
 
-128 tests, all passing; `ruff` clean. 19 fixtures, every one generated from source
+158 tests, all passing; `ruff` clean. 22 fixtures, every one generated from source
 code rather than committed as a binary.
 
 Delivered against the plan: detection, `--json`, `--html`, rotation, nested
@@ -103,7 +133,7 @@ alternative that was rejected.
 | **No OCR.** A page with no text layer cannot be audited | Reported `UNCERTAIN`, never guessed. ~19% of real-world pages |
 | **Raster-image covers are not detected.** `get_image_info()['number']` is an index, not a paint order — measured wrong | Text substantially covered by an image is `UNCERTAIN`, not `FAKE_REDACTION` |
 | **Only rectangles count.** Non-`re` filled paths are skipped | A redaction drawn as a polygon, a rounded blob, **or a rectangle under a rotating transform** is missed |
-| **Annotation-based redaction is not examined** | `/Redact` and `/Square` annotations are invisible to the tool; only content-stream drawing is read |
+| **Only `/Redact` and `/Square` annotations are handled** | Other annotation types that could obscure text (`/Stamp`, `/FreeText` with an opaque background) are not examined |
 | **No incremental-update forensics** | A prior, un-redacted revision left in the file bytes is not detected |
 | **Single-threaded, one file per invocation** | No batch or folder scanning |
 | **`seqno` ties are unresolvable** | Reported `UNCERTAIN` rather than guessed (0.07% of pages) |
@@ -139,7 +169,8 @@ Ranked by my estimate of real-world likelihood:
    user rotate an annotation.
 3. **Image covers.** Downgraded to `UNCERTAIN` — honest, but a user skimming for
    red text will miss it.
-4. **Annotation-based redaction.** Entirely out of scope.
+4. ~~**Annotation-based redaction.** Entirely out of scope.~~ `/Redact` and
+   `/Square` are now covered. Other annotation types still are not.
 5. **The 85% coverage threshold.** A box covering 80% of a span hides most of it
    but is not reported. Chosen to avoid implicating adjacent columns; untested
    against real redaction geometry.
@@ -183,17 +214,20 @@ is nothing".
 
 Honest inventory, worst first.
 
-1. **CI has never actually run.** `.github/workflows/ci.yml` exists and is
-   plausible, but there is no git remote and no commit has been pushed. It is
-   unverified configuration. The repository is `git init`-ed with **zero commits**.
+1. **A green CI run has not been confirmed.** The workflow is now on a pushed
+   branch (see Amendments), but nobody in this review has watched it pass. Still
+   unverified configuration until someone reads the Actions tab.
 2. **HTML report size is unbounded in code.** Bounded in practice (worst real case
    0.52 MB, and previews are per-page and leak-only), but a document with hundreds
-   of genuinely flagged pages would produce a very large file.
-3. **`--json` and `--html` share one error handler**, so the message says "could not
-   write report" without naming which. The failing path is in the message.
-4. **`PageContent.width`/`height` are still unconsumed.** Correct now, but nothing
-   reads them; they are there for the reporters and currently unused.
+   of genuinely flagged pages would produce a very large file. Deliberately not
+   capped: no measurement justifies a limit yet.
+3. ~~**`--json` and `--html` share one error handler.**~~ Fixed — the message now
+   names the format, asserted by test.
+4. ~~**`PageContent.width`/`height` are unconsumed.**~~ Fixed by deletion, not by
+   finding them a consumer. The CropBox-vs-MediaBox claim they used to carry is
+   now pinned by the cropped-page coordinate assertions instead.
 5. **No test exercises the real size/page caps at scale** — only that they trigger.
+   Left alone: the threshold logic *is* what a test can check.
 6. **Extraction is serialized across threads** by the diagnostics lock. Correct, but
    it means page-level parallelism would gain nothing while that stands. Per-file
    parallelism (the natural first optimization if batch scanning arrives) is
@@ -274,8 +308,9 @@ should run this in a sandbox. That belongs in the README and is not there yet.
 - **OCR / image analysis.** Would roughly double the surface and replace verifiable
   structural facts with inference — the opposite of what makes this tool worth
   trusting.
-- **A web UI, even localhost-only.** A second surface to build, test, and secure,
-  for an audience the HTML report already serves.
+- ~~**A web UI, even localhost-only.**~~ Overturned and built — see Amendments.
+  The reasoning failed on its own terms: the HTML report does not serve an audience
+  that cannot run the CLI that produces it.
 - **Any database.** The tool is stateless: one file in, one report out. There is no
   consumer for stored history, so any schema now would be a guess.
 - **Batch/folder scanning with parallelism.** No measured need; a shell `for` loop
@@ -299,15 +334,17 @@ In priority order, by value per unit of risk removed:
 2. **Redact something by hand in Acrobat, Word, Preview, and LibreOffice** using
    each tool's "black box" affordance, and confirm detection. Cheap, and directly
    attacks the recall gap and the repainted-text rule's blast radius.
-3. **Annotation-based redaction** (`/Redact`, `/Square`). A self-contained second
-   candidate source walking `/Annots`, and a real-world pattern the tool is
-   currently blind to.
-4. **Image paint order** via `Do`-operator parsing, upgrading image covers from
-   `UNCERTAIN` to a real verdict. Bounded work, well understood.
-5. **Push to a remote and confirm CI is green.** Cheap, removes unverified config.
-6. **A sandboxing note in the README** for users auditing hostile documents.
+3. ~~**Annotation-based redaction** (`/Redact`, `/Square`).~~ Done — see
+   Amendments. Cost less than estimated because half of it already worked.
+4. **Confirm CI is green.** Cheap, removes unverified config.
+5. ~~**A sandboxing note in the README**~~ — present, under "Auditing hostile
+   documents".
+6. **Image paint order** via `Do`-operator parsing — *deliberately not done*.
+   It means hand-writing the content-stream interpreter this project measured its
+   way out of needing, to replace an honest `UNCERTAIN` with a verdict. Revisit
+   only if a real document demands it.
 7. **Incremental-update byte forensics** — a distinct algorithm, worth its own
-   phase if pursued.
+   phase if pursued. Not scheduled.
 
 ---
 

@@ -257,6 +257,46 @@ def image_cover() -> bytes:
     return _finish(doc)
 
 
+def redact_annotation() -> bytes:
+    """Text marked for redaction with a /Redact annotation that was never applied.
+
+    Acrobat's "Mark for Redaction" leaves exactly this: the mark is in the file and
+    the text underneath is untouched until "Apply Redactions" is run. It paints
+    nothing, so no amount of shape analysis can find it.
+    """
+    doc = pymupdf.open()
+    page = _new_page(doc)
+    page.insert_text(TEXT_ORIGIN, SECRET, fontsize=FONT_SIZE)
+    page.add_redact_annot(pymupdf.Rect(*COVER))
+    return _finish(doc)
+
+
+def redact_annotation_applied() -> bytes:
+    """The same mark, actually applied. The text is gone and so is the annotation."""
+    doc = pymupdf.open()
+    page = _new_page(doc)
+    page.insert_text(TEXT_ORIGIN, SECRET, fontsize=FONT_SIZE)
+    page.add_redact_annot(pymupdf.Rect(*COVER))
+    page.apply_redactions()
+    return _finish(doc)
+
+
+def square_annotation_cover() -> bytes:
+    """A black /Square annotation over text — a box drawn as an annotation.
+
+    Detected through the ordinary shape path, because MuPDF flattens an
+    annotation's appearance stream into `get_drawings()`. That is MuPDF behaviour
+    rather than something this project controls, hence the fixture.
+    """
+    doc = pymupdf.open()
+    page = _new_page(doc)
+    page.insert_text(TEXT_ORIGIN, SECRET, fontsize=FONT_SIZE)
+    annot = page.add_rect_annot(pymupdf.Rect(*COVER))
+    annot.set_colors(stroke=BLACK, fill=BLACK)
+    annot.update()
+    return _finish(doc)
+
+
 def blank_page() -> bytes:
     doc = pymupdf.open()
     _new_page(doc)
@@ -292,6 +332,9 @@ ALL = {
     "corrupt_middle_page": corrupt_middle_page,
     "nested_xobject": nested_xobject,
     "image_cover": image_cover,
+    "redact_annotation": redact_annotation,
+    "redact_annotation_applied": redact_annotation_applied,
+    "square_annotation_cover": square_annotation_cover,
     "blank_page": blank_page,
     "encrypted": encrypted,
 }

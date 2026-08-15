@@ -321,3 +321,39 @@ Presentation software builds a slide by painting a state, wiping it with an opaq
 
 ### Trade-off
 A real redaction is missed if the same string also appears later on the same page — in which case that string is not secret on that page anyway. Errs toward a missed detection over a false accusation, which is the correct direction for a forensics tool.
+
+---
+
+## Decision: `/Redact` annotations are extracted; `/Square` needs nothing
+
+### Context
+Annotation-based redaction was recorded as a known blind spot. Before building anything, both cases were measured against PyMuPDF on generated fixtures.
+
+The result split them apart:
+
+| Annotation | `get_drawings()` reports | Current verdict before this change |
+|---|---|---|
+| `/Redact`, unapplied | `[]` — nothing at all | `CLEAN`, a false all-clear |
+| `/Square`, black fill | the fill, at `seqno` 1 vs the text's 0 | `FAKE_REDACTION`, already correct |
+
+MuPDF flattens an annotation's appearance stream into the drawings list with a correctly interleaved sequence number. A `/Redact` annotation has no appearance stream to flatten, because it paints nothing — it is a *mark*, not a covering.
+
+### Decision
+Extract `/Redact` annotation rectangles into `PageContent.redactions` as bare bboxes, and report any span they cover as `FAKE_REDACTION`. Do nothing for `/Square`, and add a fixture pinning the fact that it already works.
+
+No paint order is carried, no fill, no opacity. Annotations paint after the whole content stream, so an annotation is above the page's text by construction; and a `/Redact` mark has no fill to interrogate.
+
+### Alternatives
+- **Normalize both into `ShapeObject` with a synthetic opaque-black fill and a sentinel paint order.** Rejected: the detector's reason string would then report `fill rgb(0.00, 0.00, 0.00), opacity 1.00` for an annotation that paints nothing. Every other number this tool prints is re-derivable from the file by hand; inventing one to reuse a code path would trade the project's core property for about fifteen lines.
+- **Also handle `/Square` through the annotation path.** Rejected as duplicate work that would double-report the same leak. It arrives as an ordinary shape and is validated by the same corpus-tested rules.
+- **Walk `/Annots` generically and treat any annotation with an opaque fill as a cover.** Rejected: `/Stamp`, `/FreeText` and `/Highlight` would all qualify geometrically, and none is a redaction. The two subtypes that mean redaction are named in the spec; guessing beyond them invites the false-positive class the shape rules spent Phase 2 eliminating.
+
+### Reason
+`/Redact` is the least ambiguous evidence the PDF format can offer: the author labelled the region for removal in the file's own vocabulary, and the text is still extractable. It is also the one case no shape threshold could ever reach, since there is no shape. That combination — highest evidential value, zero overlap with existing coverage — is what made it worth an extraction path of its own while `Do`-operator parsing for images stayed unbuilt.
+
+The repainted-text rule is deliberately **not** applied to marks. That rule excuses presentation software rebuilding a slide over its own text; nothing about an explicit removal mark is excused by the same string appearing elsewhere on the page.
+
+### Trade-off
+Annotation types that could obscure text without declaring redaction (`/Stamp`, an opaque `/FreeText`) remain unexamined. Accepted: they are not redaction affordances, and admitting them re-opens the false-positive surface deliberately closed in Phase 2.
+
+An applied redaction removes both text and annotation, so this path correctly reports nothing for a properly redacted file — pinned by a fixture, since "the fix looks like the bug with one thing missing" is exactly where a regression hides.

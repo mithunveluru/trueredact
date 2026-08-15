@@ -34,14 +34,13 @@ def shape(bbox=BOX, order=1, fill=(0.0, 0.0, 0.0), alpha=1.0):
     return ShapeObject(bbox=bbox, fill_color=fill, alpha=alpha, paint_order=order)
 
 
-def page(spans=(), shapes=(), images=(), error=None, number=1):
+def page(spans=(), shapes=(), images=(), redactions=(), error=None, number=1):
     return PageContent(
         page_number=number,
-        width=600.0,
-        height=800.0,
         spans=tuple(spans),
         shapes=tuple(shapes),
         images=tuple(images),
+        redactions=tuple(redactions),
         error=error,
     )
 
@@ -308,6 +307,42 @@ def test_image_near_but_not_over_text_does_not_trip():
 
 def test_span_already_proven_leaked_is_not_also_reported_uncertain():
     content = page(spans=[span(order=0)], shapes=[shape(order=1)], images=[ImageBox(bbox=BOX)])
+    assert verdicts(content) == [Verdict.FAKE_REDACTION]
+
+
+# ------------------------------------------------------- /Redact annotations
+
+
+def test_redaction_mark_over_text_is_a_leak_regardless_of_paint_order():
+    """Annotations paint after the content stream, so there is no order to compare."""
+    for order in (0, 99):
+        content = page(spans=[span(order=order)], redactions=[BOX])
+        assert verdicts(content) == [Verdict.FAKE_REDACTION], order
+
+
+def test_redaction_mark_not_over_any_text_is_clean():
+    content = page(spans=[span()], redactions=[(300.0, 300.0, 400.0, 400.0)])
+    assert verdicts(content) == [Verdict.CLEAN]
+
+
+def test_redaction_mark_below_the_coverage_threshold_is_not_flagged():
+    """Same geometry rule as a drawn cover: a box grazing a span does not hide it.
+    The span runs to x=260 but BOX stops at x=200, so 76% of it is covered."""
+    content = page(spans=[span(bbox=(10.0, 5.0, 260.0, 15.0))], redactions=[BOX])
+    assert verdicts(content) == [Verdict.CLEAN]
+
+
+def test_redaction_mark_is_not_excused_by_the_text_appearing_again():
+    """The repainted-text rule excuses slide rebuilds, not an explicit removal mark."""
+    content = page(
+        spans=[span(order=0), span(bbox=(10.0, 200.0, 60.0, 210.0), order=5)],
+        redactions=[BOX],
+    )
+    assert verdicts(content) == [Verdict.FAKE_REDACTION]
+
+
+def test_span_already_flagged_by_a_shape_is_not_reported_again_by_a_mark():
+    content = page(spans=[span(order=0)], shapes=[shape(order=1)], redactions=[BOX])
     assert verdicts(content) == [Verdict.FAKE_REDACTION]
 
 

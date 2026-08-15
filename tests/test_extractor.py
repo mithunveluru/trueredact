@@ -17,7 +17,6 @@ def test_fake_redacted_yields_one_span_under_one_shape():
     page = content(fx.fake_redacted())
 
     assert page.error is None
-    assert (page.width, page.height) == (fx.PAGE_W, fx.PAGE_H)
 
     (span,) = page.spans
     assert span.text == fx.SECRET

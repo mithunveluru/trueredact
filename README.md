@@ -110,7 +110,8 @@ than saying nothing. In CI, fail on `1` and warn on `3`.
 `--max-pages` (default 500) and `--max-file-size-mb` (default 100) are checked
 before parsing begins, so a pathological file cannot hang the process.
 
-> **Status: MVP complete** (all 6 phases). Read
+> **Status: MVP complete** (all 6 phases), plus a local drag-and-drop UI and
+> detection of unapplied `/Redact` marks added afterwards. Read
 > [docs/FINAL-REVIEW.md](./docs/FINAL-REVIEW.md) for what is and isn't proven —
 > in particular, a leak result is strong evidence but a clean result is weaker:
 > detection has been validated for precision on 4,481 real pages, while recall has
@@ -123,8 +124,8 @@ before parsing begins, so a pathological file cannot hang the process.
   rectangles painted under a rotating transform, which PDF records as line segments.
 - Text hidden under a raster **image** is reported `uncertain` — PDF images carry no
   recoverable paint order, so we cannot tell whether the image is above or below.
-- Annotation-based redaction (`/Redact`, `/Square`) is not examined — only shapes
-  drawn in the page content stream.
+- Redaction *marks* left unapplied (`/Redact`) and black boxes drawn as `/Square`
+  annotations **are** detected. Other annotation types are not examined.
 - No outbound network access, ever. `scan` opens no socket at all; `ui` listens on
   `127.0.0.1` so your own browser can reach it, and sends nothing anywhere.
   See [docs/DECISIONS.md](./docs/DECISIONS.md).
