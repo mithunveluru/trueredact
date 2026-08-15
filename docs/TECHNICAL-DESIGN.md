@@ -272,12 +272,12 @@ There is no `confidence_score`. Each finding carries the measurements it was der
 - *Non-rectangular filled paths:* `KNOWN LIMITATION` — a redaction drawn as a polygon or rounded blob is not detected. Only `re` path items are considered; admitting arbitrary path bounding boxes caused 1,598 false positives. **This includes rectangles painted under a rotating or skewing `cm` transform**, which MuPDF reports as four line segments rather than an `re`.
 - *Corrupted content stream:* MuPDF recovers without raising and returns whatever it salvaged, so a mangled page can extract as empty. Detected via MuPDF's `syntax error` / `page may not be correct` warnings and reported `UNCERTAIN`; anything salvaged is still analysed, so a leak on such a page is reported *alongside* the uncertainty rather than replaced by it.
 - *CropBox smaller than MediaBox:* coordinates are reported relative to the crop origin. Page dimensions come from the CropBox; no other handling is required, since spans and shapes shift together.
-- *Annotation-based redaction* (PDF `/Redact` or `/Square` annotations rather than content-stream drawing operators): out of MVP scope — see Future Scope below. The detector only sees content-stream shapes.
+- *Annotation-based redaction* (PDF `/Redact` or `/Square` annotations rather than content-stream drawing operators): **handled, post-MVP.** `/Square` needs nothing — MuPDF flattens an annotation's appearance stream into `get_drawings()` with a correct `seqno`, so those covers arrive as ordinary shapes. `/Redact` needs its own path because an unapplied mark paints nothing at all: its rectangles are extracted into `PageContent.redactions`, carrying no fill and no paint order. See DECISIONS.md. Other annotation types (`/Stamp`, opaque `/FreeText`) remain unexamined.
 - *No text layer at all (scanned image page):* the detector cannot distinguish "properly redacted" from "never had extractable text." This must surface as `Verdict.UNCERTAIN`, never `CLEAN` — reporting "clean" on a page we didn't actually check would be a false assurance, arguably worse than no tool at all.
 
 ### Future Scope (explicitly deferred)
 
-- **Annotation-based redaction detection** — some producers apply redaction via a `/Redact` or `/Square` annotation object rather than a content-stream drawing; would require walking the page's `/Annots` array as a second candidate source.
+- ~~**Annotation-based redaction detection**~~ — built after the MVP, and smaller than this entry assumed: `/Square` was already covered by the shape path, so only `/Redact` needed the `/Annots` walk. See DECISIONS.md.
 - **Incremental-update byte forensics** — a PDF can be saved via incremental update, leaving prior object revisions (potentially the un-redacted original) physically present in the file bytes even when not referenced by the current xref table. Detecting this means scanning raw file bytes for orphaned prior `xref`/`trailer` sections — a distinct, self-contained algorithm from the content-stream overlap check above, worth its own phase if pursued.
 
 ## AI/ML
@@ -322,9 +322,11 @@ Retry logic is explicitly not applicable — every operation here is local, sync
 
 ## Future Scope (explicitly deferred) — consolidated
 
-- Local web UI (drag-and-drop, localhost-only, no auth).
+- ~~Local web UI (drag-and-drop, localhost-only, no auth).~~ Built — and it does
+  have auth: a per-session token, plus a `Host` check, because a loopback socket a
+  browser can reach is reachable by every page in that browser.
 - SQLite-backed batch scan history.
-- Annotation-based redaction detection.
+- ~~Annotation-based redaction detection.~~ Built.
 - Incremental-update (leftover-bytes) forensics.
 - Folder/batch scanning with per-file parallelism.
 - PyPI publishing / signed releases.

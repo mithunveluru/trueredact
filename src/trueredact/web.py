@@ -43,9 +43,12 @@ def plain_summary(report: ScanReport) -> dict:
         return {
             "status": "leak",
             "headline": "Not safe to send",
+            # Deliberately says nothing about *what* hides the text. A leak can come
+            # from a drawn box or from an unapplied /Redact mark, which paints
+            # nothing at all — naming a shape would be wrong for the second.
             "detail": (
-                f"Text is hidden underneath a shape on page {page_list}. "
-                "Anyone who opens this file can copy it straight out."
+                f"Text that was meant to be removed from page {page_list} is still "
+                "in the file. Anyone who opens it can copy the text straight out."
             ),
             "hidden": [f.recovered_text for f in leaks if f.recovered_text],
             "pages": pages,
@@ -68,8 +71,8 @@ def plain_summary(report: ScanReport) -> dict:
         "status": "clean",
         "headline": "Nothing hidden found",
         "detail": (
-            "No text is hidden under a shape in this file. This finds the most "
-            "common redaction mistake, so it is not a guarantee the file is safe."
+            "No hidden-but-recoverable text was found in this file. This finds the "
+            "most common redaction mistakes, so it is not a guarantee the file is safe."
         ),
         "hidden": [],
         "pages": [],

@@ -258,6 +258,11 @@ that coordinate space. Now taken from the CropBox.
 The naming throughout the codebase was corrected with it: the space is
 **unrotated, CropBox-relative**, not "mediabox".
 
+> Later: `PageContent.width`/`height` were deleted outright. Nothing ever read
+> them, and a field kept correct only by its own tests is not worth keeping. The
+> CropBox-relative claim is now pinned by the cropped-page fixture's coordinate
+> assertions instead, which test it where it actually matters.
+
 ### NOT A BUG, but a limitation made precise
 
 A rectangle painted under a **rotating or skewing `cm` transform** is reported by

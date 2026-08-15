@@ -195,14 +195,25 @@ def test_the_page_itself_is_served(server):
     ("builder", "status"),
     [
         (fx.fake_redacted, "leak"),
+        (fx.redact_annotation, "leak"),
         (fx.clean, "clean"),
         (fx.properly_redacted, "clean"),
+        (fx.redact_annotation_applied, "clean"),
         (fx.image_cover, "unknown"),
     ],
 )
 def test_plain_summary_matches_the_underlying_verdict(builder, status):
     summary, _ = scan_bytes(builder(), max_pages=500, max_file_size_mb=100)
     assert summary["status"] == status
+
+
+@pytest.mark.parametrize("builder", [fx.fake_redacted, fx.redact_annotation])
+def test_leak_wording_does_not_claim_a_shape(builder):
+    """An unapplied /Redact mark paints nothing, so a leak explanation that names a
+    shape would be false for it. One wording has to be true of both causes."""
+    summary, _ = scan_bytes(builder(), max_pages=500, max_file_size_mb=100)
+    assert "shape" not in summary["detail"]
+    assert "still in the file" in summary["detail"]
 
 
 def test_summary_never_promises_safety_on_a_clean_result():

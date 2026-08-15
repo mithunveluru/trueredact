@@ -38,6 +38,8 @@
 
 **Deferred — see [TECHNICAL-DESIGN.md § Future Scope](./TECHNICAL-DESIGN.md#future-scope-explicitly-deferred):** folder/batch scanning, a local web UI, scan-history storage, annotation-based (as opposed to content-stream) redaction detection, incremental-update byte forensics.
 
+> Post-MVP, two of these were built after all: the local web UI and annotation-based detection. Both are recorded in [DECISIONS.md](./DECISIONS.md) with the reasoning that overturned the deferral. The rest stand deferred.
+
 ## 4. System Overview
 
 A single Python process, no client/server split, no persistence layer, no network calls: read PDF → extract text spans and shape objects per page (PyMuPDF) → run the pure overlap-detection algorithm → emit findings as stdout / JSON / HTML. Full diagram in [ARCHITECTURE.md](./ARCHITECTURE.md).
