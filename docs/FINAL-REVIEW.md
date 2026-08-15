@@ -55,8 +55,10 @@ PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
 | `cli.py` | 229 | argument parsing, orchestration, exit codes |
 | `web.py` | 395 | loopback drag-and-drop UI; stdlib `http.server` only |
 
-158 tests, all passing; `ruff` clean. 22 fixtures, every one generated from source
-code rather than committed as a binary.
+162 tests, all passing; `ruff` clean. 22 fixtures, every one generated from source
+code rather than committed as a binary. (The "128 tests" in the packaging check
+further down is not a typo — it records what that clean-room verification actually
+ran, at Phase 6.)
 
 Delivered against the plan: detection, `--json`, `--html`, rotation, nested
 XObjects, exit codes, per-page fault isolation, a fixture suite, and a demo.
