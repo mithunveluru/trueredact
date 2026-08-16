@@ -153,26 +153,36 @@ def _leak_card(
 
     if page is not None:
         overlays = []
+        drew_shape = False
         for finding in findings:
             if finding.shape is not None:
                 style = _overlay_style(page, finding.shape.bbox)
                 overlays.append(f"<span class='hl shape' style='{style}'></span>")
+                drew_shape = True
             overlays += [
                 f"<span class='hl span' style='{_overlay_style(page, span.bbox)}'></span>"
                 for span in finding.covered
             ]
+        # The legend describes what was actually drawn. A /Redact mark paints
+        # nothing and so has no shape overlay; advertising one would send the
+        # reader hunting the page for a red box that is not there.
+        legend = []
+        if drew_shape:
+            legend.append(
+                "<span><i class='swatch' style='background:rgba(192,38,28,.4);"
+                "outline:2px solid #c0261c'></i>covering shape</span>"
+            )
+        legend.append(
+            "<span><i class='swatch' style='background:rgba(255,196,0,.5);"
+            "outline:2px dashed #b78103'></i>text still extractable underneath</span>"
+        )
         parts.append(
             "<div class='preview'>"
             f"<img alt='Page {page_number} preview' "
             f"src='data:image/png;base64,{_preview_png(page)}'>"
             + "".join(overlays)
             + "</div>"
-            "<p class='legend'>"
-            "<span><i class='swatch' style='background:rgba(192,38,28,.4);"
-            "outline:2px solid #c0261c'></i>covering shape</span>"
-            "<span><i class='swatch' style='background:rgba(255,196,0,.5);"
-            "outline:2px dashed #b78103'></i>text still extractable underneath</span>"
-            "</p>"
+            "<p class='legend'>" + "".join(legend) + "</p>"
         )
 
     for finding in findings:
@@ -261,8 +271,9 @@ def render(report: ScanReport, doc: pymupdf.Document) -> str:
     body += [
         (
             "<footer>Findings are structural facts read from the PDF's own objects — "
-            "which text span sits at which coordinates, painted in which order, under "
-            "which shape. No OCR, no image analysis, no machine learning, no network "
+            "which text span sits at which coordinates, painted in which order, and "
+            "what covers it: a filled shape, or a /Redact mark that was never "
+            "applied. No OCR, no image analysis, no machine learning, no network "
             "access. Text hidden under a raster image, and redactions drawn as "
             "non-rectangular paths, are not detected; pages with no text layer cannot "
             "be audited at all.</footer>"

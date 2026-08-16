@@ -66,6 +66,27 @@ def test_leak_report_shows_the_recovered_text_and_a_preview():
     assert page.count("data:image/png;base64,") == 1
 
 
+def test_legend_only_names_overlays_that_were_actually_drawn():
+    """A /Redact mark paints nothing, so its finding has no shape overlay. A legend
+    entry for one would send the reader hunting the page for a box that is
+    not there."""
+    marked = html_for(fx.redact_annotation())
+    assert "hl shape" not in marked
+    assert "covering shape" not in marked
+    assert "still extractable underneath" in marked
+
+    drawn = html_for(fx.fake_redacted())
+    assert "hl shape" in drawn
+    assert "covering shape" in drawn
+
+
+def test_redact_mark_report_still_shows_the_preview_and_the_text():
+    page = html_for(fx.redact_annotation())
+    assert fx.SECRET in page
+    assert page.count("data:image/png;base64,") == 1
+    assert "/Redact" in page
+
+
 def test_report_is_self_contained_with_no_external_references():
     """A report that fetches anything is a report that can leak the document."""
     page = html_for(fx.fake_redacted())
