@@ -15,9 +15,9 @@ docs/spike-notes.md and `core/report_html.py`.
 from dataclasses import dataclass
 from enum import Enum
 
-# x0, y0, x1, y1 — normalized so x0 <= x1 and y0 <= y1, in unrotated
-# CropBox-relative page space.
 BBox = tuple[float, float, float, float]
+"""x0, y0, x1, y1 — normalized so x0 <= x1 and y0 <= y1, in unrotated,
+CropBox-relative page space."""
 
 
 @dataclass(frozen=True, slots=True)

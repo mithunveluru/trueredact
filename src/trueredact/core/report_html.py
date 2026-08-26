@@ -173,9 +173,7 @@ def _leak_card(
                 f"<span class='hl span' style='{_overlay_style(page, span.bbox)}'></span>"
                 for span in finding.covered
             ]
-        # The legend describes what was actually drawn. A /Redact mark paints
-        # nothing and so has no shape overlay; advertising one would send the
-        # reader hunting the page for a red box that is not there.
+        # A /Redact mark paints nothing so has no overlay
         legend = []
         if drew_shape:
             legend.append(

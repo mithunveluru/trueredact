@@ -17,6 +17,26 @@ docs/spike-notes.md for the real-world false positives that forced both.
 Extraction stays non-judgemental about everything else: invisible text and
 near-black vs. coloured fills are passed through untouched, so "what counts as a
 redaction attempt" remains a detector decision, unit-testable without a PDF.
+
+MuPDF diagnostics
+-----------------
+MuPDF recovers from a corrupted content stream without raising: it returns
+whatever it salvaged and reports the problem out-of-band. Left unchecked, such a
+page extracts as empty and is then reported CLEAN — "nothing here" when the truth
+is "we could not read this". That is the single worst failure this tool can have.
+
+MuPDF separates *errors* from *warnings* into two channels, and that distinction
+is exactly the one we need:
+
+* errors   — "syntax error in content stream": the page did not parse
+* warnings — "FT_Get_Advance(...): invalid glyph index": cosmetic font noise
+  that affects neither geometry nor text recovery
+
+Measured over the 4,419-page survey corpus: the *error* channel fires on 1 page
+(0.02%), the warning channel on 144 (3.26%). So the error channel alone is the
+signal, and reading it needs no knowledge of MuPDF's wording — an earlier version
+substring-matched the warning text, which would have silently stopped working if
+MuPDF ever reworded a message, reinstating the CLEAN-on-corrupt bug.
 """
 
 import threading
@@ -42,28 +62,6 @@ three orders of magnitude of headroom while bounding the worst case to a few
 milliseconds per path.
 """
 
-
-# --------------------------------------------------------------------------
-# MuPDF diagnostics
-#
-# MuPDF recovers from a corrupted content stream without raising: it returns
-# whatever it salvaged and reports the problem out-of-band. Left unchecked, such a
-# page extracts as empty and is then reported CLEAN — "nothing here" when the truth
-# is "we could not read this". That is the single worst failure this tool can have.
-#
-# MuPDF separates *errors* from *warnings* into two channels, and that distinction
-# is exactly the one we need:
-#
-#   errors   — "syntax error in content stream": the page did not parse
-#   warnings — "FT_Get_Advance(...): invalid glyph index": cosmetic font noise
-#              that affects neither geometry nor text recovery
-#
-# Measured over the 4,419-page survey corpus: the *error* channel fires on 1 page
-# (0.02%), the warning channel on 144 (3.26%). So the error channel alone is the
-# signal, and reading it needs no knowledge of MuPDF's wording — an earlier version
-# substring-matched the warning text, which would have silently stopped working if
-# MuPDF ever reworded a message, reinstating the CLEAN-on-corrupt bug.
-# --------------------------------------------------------------------------
 
 _diagnostics_lock = threading.Lock()
 """Serializes the capture window below.
@@ -128,14 +126,12 @@ def _bbox(raw) -> BBox:
 
 
 def _span_text(chars) -> str:
-    # chars are (unicode, glyph, origin, bbox); undecodable glyphs come through as
-    # -1 and would blow up chr().
+    # Undecodable glyphs arrive as -1 and would break chr()
     return "".join(chr(c[0]) for c in chars if 0 <= c[0] <= _MAX_UNICODE)
 
 
 def _text_spans(page: pymupdf.Page):
-    # get_texttrace() rather than get_text("dict"): it is the only text API that
-    # carries `seqno`, the paint order the whole detection rests on.
+    # get_texttrace is the only text API carrying seqno
     for span in page.get_texttrace():
         text = _span_text(span["chars"])
         if not text.strip():
@@ -295,14 +291,8 @@ def extract_page(page: pymupdf.Page, page_number: int) -> PageContent:
         )
 
     if errors:
-        # Any error on MuPDF's error channel means this page did not fully parse.
-        # The message is carried for the reader's benefit only — the *decision*
-        # rests on the channel the message arrived on, not on its wording.
-        #
-        # Whatever MuPDF salvaged is kept, not discarded: a partially-parsed page
-        # can still carry a genuine, fully-evidenced leak, and throwing that away
-        # to report "uncertain" would hide a true positive. The detector reports
-        # both the findings and the unreliability.
+        # Any error there means this page did not parse
+        # Salvaged content is kept so a real leak survives
         return replace(
             content,
             error=f"MuPDF could not fully parse this page: {errors[0].strip()}",

@@ -11,8 +11,7 @@ import pymupdf
 DEFAULT_MAX_FILE_SIZE_MB = 100
 DEFAULT_MAX_PAGES = 500
 
-# The spec permits leading junk before the header, so search a window rather than
-# requiring the file to start with it.
+# The spec permits leading junk before the header
 _HEADER = b"%PDF-"
 _HEADER_WINDOW = 1024
 
@@ -60,7 +59,7 @@ def load(
     except Exception as exc:
         raise LoadError(f"could not open PDF: {type(exc).__name__}: {exc}") from exc
 
-    # Encrypted documents open without complaint and only fail later, at page load.
+    # Encrypted documents open fine and fail later at page load
     if doc.needs_pass or doc.is_encrypted:
         doc.close()
         raise LoadError(f"file is encrypted — cannot audit: {path}")

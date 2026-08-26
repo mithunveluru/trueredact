@@ -53,7 +53,7 @@ def to_dict(report: ScanReport) -> dict:
 
 
 def dumps(report: ScanReport) -> str:
-    # ensure_ascii=False keeps recovered text readable; the file is written as UTF-8.
+    # ensure_ascii=False keeps recovered text readable
     return json.dumps(to_dict(report), indent=2, ensure_ascii=False) + "\n"
 
 

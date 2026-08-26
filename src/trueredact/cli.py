@@ -102,19 +102,6 @@ def build_report(doc: pymupdf.Document, file_path: str) -> ScanReport:
     )
 
 
-def scan_file(path: str, *, max_pages: int, max_file_size_mb: int) -> ScanReport:
-    """Load, extract, detect, close. Raises LoadError if the document won't open.
-
-    The HTML report needs the document still open to render page previews, so
-    `main` manages the document's lifetime itself rather than calling this.
-    """
-    doc = load(path, max_pages=max_pages, max_file_size_mb=max_file_size_mb)
-    try:
-        return build_report(doc, str(path))
-    finally:
-        doc.close()
-
-
 def _render_finding(finding: Finding) -> list[str]:
     label = {
         Verdict.FAKE_REDACTION: "LEAK",
@@ -123,7 +110,7 @@ def _render_finding(finding: Finding) -> list[str]:
     }[finding.verdict]
     lines = [f"{label:<4}  page {finding.page_number}: {finding.reason}"]
     if finding.recovered_text:
-        # Only call it "hidden" where we established that it is.
+        # Only say hidden where that was established
         caption = "hidden text" if finding.verdict is Verdict.FAKE_REDACTION else "text in question"
         lines.append(f"        {caption}: {finding.recovered_text!r}")
     if finding.shape is not None:
@@ -176,16 +163,12 @@ def _write_report(label: str, write, path: str) -> list[str]:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
-    # MuPDF's *error* channel is owned by the extractor's callback, which turns it
-    # into an UNCERTAIN finding with context — so errors no longer reach stderr at
-    # all. Its *warning* channel is separate, still prints, and is pure noise here:
-    # 3.26% of real pages emit cosmetic font warnings the tool deliberately
-    # ignores. Silenced unless the user asks to see them.
+    # Warnings are cosmetic font noise on 3.26% of pages
     if not getattr(args, "verbose", False):
         pymupdf.TOOLS.mupdf_display_warnings(False)
 
     if args.command == "ui":
-        # Imported here so the common `scan` path does not pay for the server.
+        # Imported here so scan does not load the server
         from . import web
 
         return web.serve(
@@ -214,13 +197,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("re-run with -v for a full traceback", file=sys.stderr)
             return EXIT_ERROR
 
-        # Printed before the reports are written, and never replaced by a failure
-        # to write one: the verdict is established at this point, and a report
-        # that will not serialize must not be able to bury it.
+        # Printed first so a failed write cannot bury it
         print(render_summary(report, verbose=args.verbose))
 
-        # Written while the document is still open: HTML previews render pages
-        # from it.
+        # Written while the document is open for HTML previews
         unwritten = []
         if args.json:
             unwritten += _write_report(
@@ -234,8 +214,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if doc is not None:
             doc.close()
 
-    # A leak outranks an unwritten report. Exit 2 means "the scan could not run",
-    # which would be a lie about a document whose verdict is printed above.
+    # A leak outranks an unwritten report
     if report.has_leak:
         return EXIT_LEAK
     if unwritten:
