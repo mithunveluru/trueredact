@@ -75,8 +75,7 @@ def is_redaction_candidate(shape: ShapeObject) -> bool:
         return False  # a stroke-only outline covers nothing
     if shape.alpha is not None and shape.alpha < OPACITY_THRESHOLD:
         return False
-    # alpha is None for a fill with no explicit constant-alpha setting; PDF's
-    # default alpha is 1.0, so that reads as fully opaque.
+    # alpha None means no explicit alpha so PDF default 1.0
     return _area(shape.bbox) >= CANDIDATE_MIN_AREA
 
 
@@ -139,8 +138,7 @@ def _shape_findings(page: PageContent) -> tuple[list[Finding], set[int]]:
                 hidden.append(covered)
             elif span.paint_order == shape.paint_order:
                 ambiguous.append(covered)
-            # span painted after the shape: the shape is underneath it, e.g. a
-            # table cell or a highlight. Not a cover.
+            # Painted after the shape so the shape is underneath
 
         if hidden:
             accounted.update(span.paint_order for span in hidden)
@@ -242,6 +240,7 @@ def _image_findings(page: PageContent, accounted: set[int]) -> list[Finding]:
             and (covered := _covered_span(span, image.bbox)) is not None
         ]
         if hidden:
+            accounted.update(span.paint_order for span in hidden)
             findings.append(
                 Finding(
                     page_number=page.page_number,
@@ -272,8 +271,7 @@ def detect_page(page: PageContent) -> list[Finding]:
         return [unreliable]
 
     if not page.spans:
-        # No text layer. We cannot tell "properly redacted" from "never had text",
-        # and a scanned page is out of scope by design (no OCR).
+        # No text layer and no OCR by design
         if page.images:
             return [
                 Finding(
@@ -297,9 +295,7 @@ def detect_page(page: PageContent) -> list[Finding]:
     findings.extend(_redaction_annot_findings(page, accounted))
     findings.extend(_image_findings(page, accounted))
     if unreliable is not None:
-        # Reported alongside any real findings, never instead of them: what we did
-        # extract may be sound, but absence of evidence on a page we could not
-        # fully read is not evidence of absence.
+        # Reported alongside real findings never instead of them
         findings.append(unreliable)
     if findings:
         return findings

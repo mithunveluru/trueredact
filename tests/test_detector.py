@@ -363,3 +363,19 @@ def test_detection_is_deterministic():
 def test_page_number_is_carried_onto_every_finding(page_number):
     content = page(spans=[span()], shapes=[shape()], number=page_number)
     assert all(f.page_number == page_number for f in detect_page(content))
+
+
+def test_overlapping_images_report_one_uncertainty_per_span():
+    """Real documents layer images routinely. Reporting the same span once per
+    image inflates every count without adding evidence."""
+    span = TextSpan(
+        bbox=(10.0, 10.0, 50.0, 20.0), text="SECRET", paint_order=0,
+        render_mode=0, opacity=1.0,
+    )
+    page = PageContent(
+        page_number=1,
+        spans=(span,),
+        images=(ImageBox(bbox=(0.0, 0.0, 100.0, 100.0)), ImageBox(bbox=(5.0, 5.0, 60.0, 60.0))),
+    )
+    findings = detect_page(page)
+    assert [f.verdict for f in findings] == [Verdict.UNCERTAIN]
