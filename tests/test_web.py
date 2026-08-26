@@ -86,6 +86,14 @@ def test_oversized_upload_is_refused_before_being_read(server):
         srv.RequestHandlerClass.max_file_size_mb = 100
 
 
+def test_connections_time_out(server):
+    """A client that opens a socket and sends nothing gets a thread before any
+    token is checked, so without a timeout any local process can wedge the UI.
+    Asserted rather than exercised: waiting one out would cost the suite 30 s."""
+    srv, _ = server
+    assert srv.RequestHandlerClass.timeout, "a stalled connection must be dropped"
+
+
 def test_page_declares_no_external_sources(server):
     _, url = server
     with urllib.request.urlopen(url, timeout=10) as response:

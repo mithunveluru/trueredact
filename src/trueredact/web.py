@@ -43,9 +43,7 @@ def plain_summary(report: ScanReport) -> dict:
         return {
             "status": "leak",
             "headline": "Not safe to send",
-            # Deliberately says nothing about *what* hides the text. A leak can come
-            # from a drawn box or from an unapplied /Redact mark, which paints
-            # nothing at all — naming a shape would be wrong for the second.
+            # A /Redact mark paints nothing so name no shape
             "detail": (
                 f"Text that was meant to be removed from page {page_list} is still "
                 "in the file. Anyone who opens it can copy the text straight out."
@@ -247,6 +245,16 @@ class _Handler(BaseHTTPRequestHandler):
     server_version = "TrueRedact"
     sys_version = ""
 
+    timeout = 30
+    """Seconds a single connection may stall before it is dropped.
+
+    `ThreadingHTTPServer` gives every connection a thread and `BaseHTTPRequestHandler`
+    sets no timeout, so a client that opens a socket and sends nothing holds a thread
+    for the life of the process — before any token is checked. Any local process could
+    then wedge the UI, which is launched from a desktop icon with no terminal to
+    recover from.
+    """
+
     token: str = ""
     max_pages: int = DEFAULT_MAX_PAGES
     max_file_size_mb: int = DEFAULT_MAX_FILE_SIZE_MB
@@ -283,7 +291,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # The page has no external references; say so rather than rely on it.
+        # The page has no external references
         self.send_header("Content-Security-Policy", "default-src 'none'; "
                          "style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
                          "img-src data:; connect-src 'self'")
@@ -300,16 +308,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
-        # Without this, any page open in the same browser could post a file here.
+        # Stops any other browser page posting files here
         supplied = urllib.parse.parse_qs(parsed.query).get("t", [""])[0]
         if not self.token or not secrets.compare_digest(supplied, self.token):
             self._json(HTTPStatus.FORBIDDEN, {"error": "invalid session token"})
             return
 
         if parsed.path == "/quit":
-            # Launched from a desktop icon there is no terminal to interrupt, so
-            # the page needs a way to stop the server. Shutdown runs on its own
-            # thread because it blocks until the serve loop exits.
+            # Shutdown blocks until the serve loop exits
             self._json(HTTPStatus.OK, {"stopped": True})
             threading.Thread(target=self.server.shutdown, daemon=True).start()
             return
@@ -320,8 +326,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.BAD_REQUEST, {"error": "bad Content-Length"})
             return
 
-        # Checked before reading, so an oversized upload is refused rather than
-        # buffered.
+        # Refuse oversized uploads before reading the body
         if length <= 0:
             self._json(HTTPStatus.BAD_REQUEST, {"error": "empty upload"})
             return
@@ -363,7 +368,7 @@ def build_server(
         (_Handler,),
         {"token": token, "max_pages": max_pages, "max_file_size_mb": max_file_size_mb},
     )
-    # 127.0.0.1, never 0.0.0.0: the socket must not be reachable from the network.
+    # Never 0.0.0.0 the socket must stay off the network
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{server.server_port}/?t={token}"
     return server, url
@@ -379,9 +384,7 @@ def serve(
     server, url = build_server(
         port=port, max_pages=max_pages, max_file_size_mb=max_file_size_mb
     )
-    # Flushed explicitly: launched from a desktop entry stdout is not a terminal
-    # and would otherwise stay block-buffered, hiding the address a user needs if
-    # the browser does not open on its own.
+    # Flushed because a desktop launch has no terminal
     print(f"TrueRedact is running at {url}", flush=True)
     print("Nothing leaves this computer. Press Ctrl+C to stop.", flush=True)
     if open_browser:
