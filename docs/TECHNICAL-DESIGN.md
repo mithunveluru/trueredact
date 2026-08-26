@@ -192,6 +192,8 @@ Exit codes:
     0   scan completed, no fake redaction found, every page audited
     1   scan completed, at least one fake redaction found
     2   scan could not run (bad input, unreadable file, unwritable report)
+        — but a leak already found still exits 1, since the verdict is printed
+          before any report is written and must not be buried by a failed write
     3   scan completed, no fake redaction found, but some pages could not be audited
 ```
 
@@ -317,7 +319,9 @@ This tool's core purpose is parsing untrusted, potentially adversarial PDF files
 | Oversized file / too many pages | Size/page check before parsing | Abort with typed `LoadError` | Exit 2, message stating the configured limit and how to raise it via flags |
 | Malformed content stream on one page | Exception caught per-page in `extractor.py` | Skip that page, continue scan, log a warning | Scan completes; final report notes the skipped page explicitly (not silently) |
 | No text layer at all on a page (scanned image) | Zero text spans extracted for that page | Emit `Verdict.UNCERTAIN` for that page, not `CLEAN` | User is told the page couldn't be audited, not falsely reassured |
-| Unexpected internal exception | Top-level `try/except` in `cli.py` | Print a clean error message + the exception type (not a raw traceback by default; full traceback only under `-v`) | Exit 2 |
+| Unexpected internal exception during load/detect | Top-level `try/except` in `cli.py` | Print a clean error message + the exception type (not a raw traceback by default; full traceback only under `-v`) | Exit 2 |
+| Report cannot be written (bad path, unrenderable page) | `_write_report` in `cli.py` | Summary is already printed; the failure is named on stderr and the scan's own verdict stands | Exit 1 if a leak was found, otherwise 2 |
+| Page too large for MuPDF to rasterize | `try/except` in `report_html._preview_png` | Card is rendered without a preview; recovered text and spans table are the evidence | Finding is reported in full, minus the image |
 
 Retry logic is explicitly not applicable — every operation here is local, synchronous, and deterministic; retrying a parse failure would just reproduce the same failure.
 

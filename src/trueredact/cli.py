@@ -158,6 +158,21 @@ def render_summary(report: ScanReport, *, verbose: bool) -> str:
     return "\n".join(lines)
 
 
+def _write_report(label: str, write, path: str) -> list[str]:
+    """Write one report. Returns the label if it failed, so the caller can react.
+
+    Reported rather than raised: the verdict has already been printed by the time
+    this runs, and losing it to a broken output path would be the worse failure.
+    """
+    try:
+        write()
+    except Exception as exc:  # noqa: BLE001 - the verdict must survive any writer
+        print(f"error: could not write the {label} report: {exc}", file=sys.stderr)
+        return [label]
+    print(f"wrote {label} report to {Path(path)}")
+    return []
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -181,45 +196,50 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     doc = None
-    writing = "report"  # named by the block below, so an OSError says which one failed
     try:
-        doc = load(
-            args.pdf,
-            max_pages=args.max_pages,
-            max_file_size_mb=args.max_file_size_mb,
-        )
-        report = build_report(doc, str(args.pdf))
+        try:
+            doc = load(
+                args.pdf,
+                max_pages=args.max_pages,
+                max_file_size_mb=args.max_file_size_mb,
+            )
+            report = build_report(doc, str(args.pdf))
+        except LoadError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+        except Exception as exc:  # noqa: BLE001 - never show a raw traceback by default
+            if args.verbose:
+                traceback.print_exc()
+            print(f"error: unexpected {type(exc).__name__}: {exc}", file=sys.stderr)
+            print("re-run with -v for a full traceback", file=sys.stderr)
+            return EXIT_ERROR
 
-        # Written while the document is still open: HTML previews need to render
-        # pages from it.
+        # Printed before the reports are written, and never replaced by a failure
+        # to write one: the verdict is established at this point, and a report
+        # that will not serialize must not be able to bury it.
+        print(render_summary(report, verbose=args.verbose))
+
+        # Written while the document is still open: HTML previews render pages
+        # from it.
+        unwritten = []
         if args.json:
-            writing = "JSON report"
-            report_json.write(report, args.json)
-            print(f"wrote JSON report to {Path(args.json)}")
+            unwritten += _write_report(
+                "JSON", lambda: report_json.write(report, args.json), args.json
+            )
         if args.html:
-            writing = "HTML report"
-            report_html.write(report, doc, args.html)
-            print(f"wrote HTML report to {Path(args.html)}")
-    except LoadError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return EXIT_ERROR
-    except OSError as exc:
-        print(f"error: could not write the {writing}: {exc}", file=sys.stderr)
-        return EXIT_ERROR
-    except Exception as exc:  # noqa: BLE001 - never show a raw traceback by default
-        if args.verbose:
-            traceback.print_exc()
-        print(f"error: unexpected {type(exc).__name__}: {exc}", file=sys.stderr)
-        print("re-run with -v for a full traceback", file=sys.stderr)
-        return EXIT_ERROR
+            unwritten += _write_report(
+                "HTML", lambda: report_html.write(report, doc, args.html), args.html
+            )
     finally:
         if doc is not None:
             doc.close()
 
-    print(render_summary(report, verbose=args.verbose))
-
+    # A leak outranks an unwritten report. Exit 2 means "the scan could not run",
+    # which would be a lie about a document whose verdict is printed above.
     if report.has_leak:
         return EXIT_LEAK
+    if unwritten:
+        return EXIT_ERROR
     if report.has_uncertainty:
         return EXIT_UNCERTAIN
     return EXIT_CLEAN

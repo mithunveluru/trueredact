@@ -72,8 +72,17 @@ def _esc(text: object) -> str:
     return html.escape(str(text), quote=True)
 
 
-def _preview_png(page: pymupdf.Page) -> str:
-    pix = page.get_pixmap(dpi=PREVIEW_DPI)
+def _preview_png(page: pymupdf.Page) -> str | None:
+    """Base64 PNG of the page, or None when it cannot be rasterized.
+
+    The preview illustrates a finding; the recovered text and the spans table are
+    the evidence. MuPDF refuses to rasterize an oversized page, and letting that
+    escape would discard a leak the detector had already established.
+    """
+    try:
+        pix = page.get_pixmap(dpi=PREVIEW_DPI)
+    except Exception:  # noqa: BLE001 - a broken preview must not lose the finding
+        return None
     return base64.b64encode(pix.tobytes("png")).decode("ascii")
 
 
@@ -151,7 +160,8 @@ def _leak_card(
         ),
     ]
 
-    if page is not None:
+    preview = None if page is None else _preview_png(page)
+    if preview is not None:
         overlays = []
         drew_shape = False
         for finding in findings:
@@ -179,7 +189,7 @@ def _leak_card(
         parts.append(
             "<div class='preview'>"
             f"<img alt='Page {page_number} preview' "
-            f"src='data:image/png;base64,{_preview_png(page)}'>"
+            f"src='data:image/png;base64,{preview}'>"
             + "".join(overlays)
             + "</div>"
             "<p class='legend'>" + "".join(legend) + "</p>"

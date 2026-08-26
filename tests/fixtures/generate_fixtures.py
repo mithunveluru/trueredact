@@ -319,6 +319,20 @@ def square_annotation_cover() -> bytes:
     return _finish(doc)
 
 
+def unrenderable_page() -> bytes:
+    """A genuine leak on a page too large for MuPDF to rasterize.
+
+    Detection reads geometry and needs no pixels, so the finding is sound; only the
+    HTML report's page preview fails. Pins that a preview failure cannot discard a
+    leak the detector already established.
+    """
+    doc = pymupdf.open()
+    page = doc.new_page(width=14000.0, height=14000.0)
+    page.insert_text((500.0, 600.0), SECRET, fontsize=FONT_SIZE)
+    page.draw_rect(pymupdf.Rect(495.0, 585.0, 700.0, 610.0), color=None, fill=BLACK)
+    return _finish(doc)
+
+
 def blank_page() -> bytes:
     doc = pymupdf.open()
     _new_page(doc)
@@ -358,6 +372,7 @@ ALL = {
     "redact_annotation": redact_annotation,
     "redact_annotation_applied": redact_annotation_applied,
     "square_annotation_cover": square_annotation_cover,
+    "unrenderable_page": unrenderable_page,
     "blank_page": blank_page,
     "encrypted": encrypted,
 }

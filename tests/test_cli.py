@@ -101,13 +101,39 @@ def test_size_cap_is_enforced_and_names_the_flag(pdf, capsys):
 @pytest.mark.parametrize("flag", ["--json", "--html"])
 def test_unwritable_report_destination_exits_two(pdf, tmp_path, capsys, flag):
     missing = tmp_path / "no-such-dir" / "report.out"
-    code = main(["scan", pdf("bad.pdf", fx.fake_redacted()), flag, str(missing)])
+    code = main(["scan", pdf("good.pdf", fx.clean()), flag, str(missing)])
     err = capsys.readouterr().err
     assert code == EXIT_ERROR
     assert "could not write the" in err
     assert "no-such-dir" in err, "the message must name the path that failed"
     # Both reports share one handler, so the message has to say which one it was.
     assert flag.lstrip("-").upper() in err, "the message must name the failing format"
+
+
+@pytest.mark.parametrize("flag", ["--json", "--html"])
+def test_a_leak_survives_a_report_that_cannot_be_written(pdf, tmp_path, capsys, flag):
+    """Exit 2 says "the scan could not run", which is a lie about a document whose
+    leak was already established. The verdict outranks the missing file."""
+    missing = tmp_path / "no-such-dir" / "report.out"
+    code = main(["scan", pdf("bad.pdf", fx.fake_redacted()), flag, str(missing)])
+    captured = capsys.readouterr()
+    assert code == EXIT_LEAK
+    assert "FAKE REDACTION FOUND" in captured.out
+    assert fx.SECRET in captured.out
+    assert "could not write the" in captured.err
+
+
+def test_a_leak_survives_a_page_that_cannot_be_rendered(pdf, tmp_path, capsys):
+    """MuPDF refuses to rasterize an oversized page. The preview illustrates a
+    finding; it is not the evidence, so losing it must not lose the leak."""
+    out = tmp_path / "report.html"
+    code = main(["scan", pdf("huge.pdf", fx.unrenderable_page()), "--html", str(out)])
+    captured = capsys.readouterr()
+
+    assert code == EXIT_LEAK
+    assert "FAKE REDACTION FOUND" in captured.out
+    assert fx.SECRET in out.read_text(encoding="utf-8")
+    assert "<img" not in out.read_text(encoding="utf-8"), "no preview was renderable"
 
 
 def test_no_arguments_is_a_usage_error_not_a_crash():

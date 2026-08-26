@@ -101,6 +101,10 @@ FAKE REDACTION FOUND: 1 on page(s) 1. The text above is still in the file.
 | `2` | the scan could not run (missing file, not a PDF, encrypted, over a limit) |
 | `3` | no fake redaction found, but some pages could not be audited |
 
+A report that cannot be written is named on stderr but does not change a `1`: the
+verdict is printed before any file is, and a broken output path must not turn a
+found leak into "the scan could not run".
+
 `3` is separate from `0` on purpose. A scanned PDF with no text layer cannot be
 checked at all, and saying "all clear" about a page nobody read would be worse
 than saying nothing. In CI, fail on `1` and warn on `3`.
