@@ -31,6 +31,17 @@ from .models import BBox, ImageBox, PageContent, ShapeObject, TextSpan
 
 _MAX_UNICODE = 0x10FFFF
 
+_MAX_RECTS_PER_PATH = 200
+"""Rectangles in one path above which it is treated as artwork, not a redaction.
+
+The frame rule in `_solid_rects` compares every rectangle against every other, so
+cost grows quadratically within a single path. Measured before this cap: 15,000
+rectangles in one path took 44 s from a 29 KB file, which both the size and page
+caps let through. A redaction is one rectangle and a frame is two; 200 leaves
+three orders of magnitude of headroom while bounding the worst case to a few
+milliseconds per path.
+"""
+
 
 # --------------------------------------------------------------------------
 # MuPDF diagnostics
@@ -172,8 +183,17 @@ def _solid_rects(path) -> list[BBox]:
     Non-rectangular filled paths (curves, polygons) are skipped: a redaction box
     is a rectangle, and admitting arbitrary path bboxes is exactly what produced
     the false positives. Noted as a limitation in docs/spike-notes.md.
+
+    The frame test is pairwise, so a path carrying thousands of rectangles costs
+    quadratic time on a file small enough to pass every cap. Such a path is a
+    chart, a heatmap or a shaded table, never a redaction, so above
+    `_MAX_RECTS_PER_PATH` the path is dropped rather than filtered. That keeps the
+    per-page cost linear in total rectangle count and errs toward a missed
+    detection, which is the direction every other ambiguous case here takes.
     """
     rects = [_bbox(item[1]) for item in path.get("items", ()) if item[0] == "re"]
+    if len(rects) > _MAX_RECTS_PER_PATH:
+        return []
     return [
         rect
         for i, rect in enumerate(rects)

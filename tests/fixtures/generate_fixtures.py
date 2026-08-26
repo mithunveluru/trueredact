@@ -183,6 +183,28 @@ def filled_table() -> bytes:
     return _finish(doc)
 
 
+def dense_vector_art() -> bytes:
+    """One path holding thousands of rectangles, plus a genuine cover elsewhere.
+
+    A heatmap or shaded table looks like this. The frame rule is pairwise within a
+    path, so an uncapped scan of this page is quadratic while the file stays tiny
+    enough to pass every size and page limit. The real cover is on the same page to
+    prove the cap does not cost a detection.
+    """
+    doc = pymupdf.open()
+    page = _new_page(doc)
+    page.insert_text(TEXT_ORIGIN, SECRET, fontsize=FONT_SIZE)
+    page.draw_rect(pymupdf.Rect(*COVER), color=None, fill=BLACK)
+    art = page.new_shape()
+    for i in range(4000):
+        x = 260.0 + (i % 40) * 3.0
+        y = 80.0 + (i // 40) * 2.0
+        art.draw_rect(pymupdf.Rect(x, y, x + 2.0, y + 1.5))
+    art.finish(fill=(0.5, 0.5, 0.5), color=None)
+    art.commit()
+    return _finish(doc)
+
+
 def cropped_page() -> bytes:
     """CropBox smaller than MediaBox: coordinates shift to the crop origin."""
     doc = pymupdf.open()
@@ -327,6 +349,7 @@ ALL = {
     "semi_transparent_cover": semi_transparent_cover,
     "barely_transparent_cover": barely_transparent_cover,
     "filled_table": filled_table,
+    "dense_vector_art": dense_vector_art,
     "cropped_page": cropped_page,
     "tilted_cover": tilted_cover,
     "corrupt_middle_page": corrupt_middle_page,

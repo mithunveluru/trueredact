@@ -1,3 +1,5 @@
+import time
+
 import pymupdf
 import pytest
 from fixtures import generate_fixtures as fx
@@ -90,6 +92,23 @@ def test_frame_path_is_not_extracted_as_a_solid_cover():
         shape.bbox[0] <= span.bbox[0] and span.bbox[2] <= shape.bbox[2]
         for shape in page.shapes
     ), "the frame must not be reported as a rectangle covering the text"
+
+
+def test_dense_vector_path_is_dropped_without_costing_the_real_cover():
+    """A path of thousands of rectangles is artwork, and pairwise-checking it is
+    quadratic on a file small enough to pass every cap. Dropping it must not lose
+    the genuine cover drawn as its own path on the same page."""
+    data = fx.dense_vector_art()
+    assert len(data) < 200_000, "the cheap attack is a small file, so keep it small"
+
+    started = time.monotonic()
+    page = content(data)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 5.0, f"extraction took {elapsed:.1f}s; the per-path cap is not holding"
+    assert len(page.shapes) == 1, "only the real cover survives"
+    (span,) = (s for s in page.spans if s.text == fx.SECRET)
+    assert page.shapes[0].paint_order > span.paint_order
 
 
 def test_clipped_fill_is_reduced_to_the_region_it_actually_paints():

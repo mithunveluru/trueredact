@@ -108,7 +108,10 @@ than saying nothing. In CI, fail on `1` and warn on `3`.
 ### Limits
 
 `--max-pages` (default 500) and `--max-file-size-mb` (default 100) are checked
-before parsing begins, so a pathological file cannot hang the process.
+before parsing begins. Neither bounds work on its own — cost is driven by how much
+vector art a page carries, not by its byte count — so a single path is also capped
+at 200 rectangles, above which it is artwork rather than a redaction and is
+skipped. Together these keep scan time linear in what the file actually draws.
 
 > **Status: MVP complete** (all 6 phases), plus a local drag-and-drop UI and
 > detection of unapplied `/Redact` marks added afterwards. Read
@@ -122,6 +125,8 @@ before parsing begins, so a pathological file cannot hang the process.
 - No OCR. A scanned page with no text layer is reported `uncertain`, never guessed at.
 - Redactions drawn as non-rectangular filled paths are not detected — including
   rectangles painted under a rotating transform, which PDF records as line segments.
+- A cover sharing one path with more than 200 other rectangles is skipped as
+  artwork. Redactions are drawn on their own; heatmaps and shaded tables are not.
 - Text hidden under a raster **image** is reported `uncertain` — PDF images carry no
   recoverable paint order, so we cannot tell whether the image is above or below.
 - Redaction *marks* left unapplied (`/Redact`) and black boxes drawn as `/Square`
