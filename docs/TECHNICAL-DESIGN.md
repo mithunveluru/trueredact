@@ -7,9 +7,11 @@
 ```text
 trueredact/
 ├── docs/                        # this blueprint
+├── packaging/trueredact.svg     # desktop-entry icon
 ├── src/trueredact/
 │   ├── __init__.py
 │   ├── cli.py                   # argparse entry point + orchestration
+│   ├── web.py                   # loopback drag-and-drop UI, stdlib only
 │   └── core/
 │       ├── __init__.py
 │       ├── models.py            # TextSpan, ShapeObject, Finding, ScanReport
@@ -27,10 +29,15 @@ trueredact/
 │   ├── test_report_json.py
 │   ├── test_report_html.py
 │   ├── test_cli.py
+│   ├── test_web.py
+│   ├── test_edge_cases.py
 │   └── test_pipeline_integration.py
 ├── .github/workflows/ci.yml
+├── demo.sh
+├── install.sh
 ├── pyproject.toml
 ├── README.md
+├── SECURITY.md
 └── LICENSE
 ```
 
@@ -38,68 +45,21 @@ trueredact/
 
 ## Domain Model
 
-Implemented in Phase 1 (`core/models.py`). Shape revised against spike evidence — see [spike-notes.md](./spike-notes.md) for the measurements behind each change.
+Implemented in `core/models.py`, which is the authority — the field-level definitions live there with the reasoning attached, and are deliberately not duplicated here where they would drift. Shape revised against spike evidence; see [spike-notes.md](./spike-notes.md) for the measurements behind each change.
 
-```python
-BBox = tuple[float, float, float, float]   # x0, y0, x1, y1; unrotated page space
+| Type | Carries |
+|---|---|
+| `BBox` | `(x0, y0, x1, y1)`, normalized, in unrotated CropBox-relative page space |
+| `TextSpan` | bbox, text, `paint_order` (PyMuPDF `seqno`), `render_mode` (3 = invisible but extractable), opacity |
+| `ShapeObject` | bbox, `fill_color` (`None` if unfilled), `alpha` (`None`, not `1.0`, when there is no fill), `paint_order` |
+| `ImageBox` | bbox only — **no paint order**, see the `KNOWN LIMITATION` below |
+| `PageContent` | page number, spans, shapes, images, `/Redact` boxes, and `error` when extraction failed |
+| `Verdict` | `FAKE_REDACTION` / `CLEAN` / `UNCERTAIN` |
+| `CoveredSpan` | text, bbox, coverage ratio, paint order, render mode |
+| `Finding` | page number, verdict, reason, the implicated `ShapeObject` if any, and the covered spans |
+| `ScanReport` | file path, page count, findings, `generated_at` |
 
-@dataclass(frozen=True, slots=True)
-class TextSpan:
-    bbox: BBox
-    text: str
-    paint_order: int          # PyMuPDF seqno; comparable only within one page
-    render_mode: int          # 0=fill/visible, 3=invisible-but-extractable
-    opacity: float
-
-@dataclass(frozen=True, slots=True)
-class ShapeObject:
-    bbox: BBox
-    fill_color: tuple[float, float, float] | None   # RGB 0..1, None if unfilled
-    alpha: float | None        # fill opacity; None (not 1.0) when there is no fill
-    paint_order: int
-
-@dataclass(frozen=True, slots=True)
-class ImageBox:
-    bbox: BBox                 # no paint_order — see KNOWN LIMITATION below
-
-@dataclass(frozen=True, slots=True)
-class PageContent:
-    page_number: int
-    width: float
-    height: float
-    spans: tuple[TextSpan, ...] = ()
-    shapes: tuple[ShapeObject, ...] = ()
-    images: tuple[ImageBox, ...] = ()
-    error: str | None = None   # extraction failed; never report such a page CLEAN
-
-# --- Phase 2/3, not yet implemented. `confidence` is an open question:
-#     see DEVELOPMENT-PLAN.md, Phase 2. ---
-
-class Verdict(str, Enum):
-    FAKE_REDACTION = "fake_redaction"
-    CLEAN = "clean"
-    UNCERTAIN = "uncertain"     # e.g. no text layer at all (scanned image) — cannot assess
-
-@dataclass(frozen=True)
-class Finding:
-    page_number: int
-    verdict: Verdict
-    region: tuple[float, float, float, float] | None   # bbox of the flagged shape, if any
-    recovered_text: str | None
-    confidence: float | None    # 0..1, only set for FAKE_REDACTION
-    reason: str                 # human-readable explanation, always set
-
-@dataclass(frozen=True)
-class ScanReport:
-    file_path: str
-    page_count: int
-    findings: list[Finding]
-    generated_at: str           # ISO 8601
-
-    @property
-    def has_leak(self) -> bool:
-        return any(f.verdict == Verdict.FAKE_REDACTION for f in self.findings)
-```
+Two fields the original design specified are **absent**: `Finding.confidence` (an uncalibrated 0–1 number reading as a probability) and `Finding.region` (superseded by `shape.bbox`). `PageContent.width`/`height` were added and then deleted, unconsumed. Each removal is recorded in [DECISIONS.md](./DECISIONS.md).
 
 ~~`ASSUMPTION`~~ → **VALIDATED (Phase 1 spike).** PyMuPDF's `seqno` is a single page-local counter shared by `get_texttrace()` and `get_drawings()`, reproducing content-stream order exactly. Measured across 4,397 pages / 187 files / 33 producers: 11 pages (0.25%) show a text↔shape `seqno` collision, of which only 3 (0.07%) involve a *filled* shape — all 15–51 pt², far below `CANDIDATE_MIN_AREA`. The content-stream-parsing fallback is **not needed**. Full evidence in [spike-notes.md](./spike-notes.md).
 
@@ -199,9 +159,15 @@ Exit codes:
 
 Exit `3` is an addition to the original three-code scheme. Collapsing "nothing suspicious" and "we could not check some of this" into `0` would report a scanned, unauditable document as all-clear — the false assurance this tool exists to prevent, and a requirement the original scheme could not express. Roughly 19% of pages in the real-document corpus are unauditable (scans with no text layer), so this is a common case, not a corner. See [DECISIONS.md](./DECISIONS.md).
 
-### Future Scope (explicitly deferred)
+### Local UI — built, and not as sketched
 
-A local web UI, if built later, would be a single Flask process bound to `127.0.0.1` only, with exactly one endpoint (`POST /scan`, multipart file upload, returns the JSON schema above) and explicitly no authentication layer — there's nothing to authenticate on a single-user local tool.
+`trueredact ui` binds `http.server` to `127.0.0.1` on an ephemeral port and serves one page plus `POST /scan`. Three details differ from the deferred sketch, each for a measured reason:
+
+- **stdlib, not Flask.** One page and one endpoint do not justify doubling the dependency tree of a security tool.
+- **Raw bytes, not `multipart/form-data`.** Parsing multipart would need `cgi.FieldStorage`, removed in Python 3.13, which CI tests. Raw bytes have no parsing surface at all.
+- **It does have authentication.** "Nothing to authenticate on a single-user local tool" was wrong: a loopback socket a browser can reach is reachable by every page in that browser. A random per-run token guards every `POST`, alongside a `Host` check.
+
+The response is the plain-English summary plus the full HTML report, not the JSON schema above.
 
 ## Core Algorithm
 
@@ -265,7 +231,7 @@ There is no `confidence_score`. Each finding carries the measurements it was der
 **Complexity:** O(shapes × spans) per page, and `repainted_after` adds a further O(spans) in the covered branch only. Trivially fast at real-world page scale; measured ~15 ms/page over a 4,397-page corpus.
 
 **Edge cases:**
-- *Rotated pages (`/Rotate` 90/180/270):* **no handling required.** Measured: `get_texttrace()` and `get_drawings()` both report unrotated mediabox coordinates, byte-identical across all four rotations, so text and shapes are already in one comparable space. `/Rotate` matters only when painting a bbox onto a rendered pixmap for the HTML report (Phase 4), via `page.rotation_matrix`. Locked by a regression test.
+- *Rotated pages (`/Rotate` 90/180/270):* **no handling required.** Measured: `get_texttrace()` and `get_drawings()` both report unrotated, CropBox-relative coordinates, byte-identical across all four rotations, so text and shapes are already in one comparable space. `/Rotate` matters only when painting a bbox onto a rendered pixmap for the HTML report (Phase 4), via `page.rotation_matrix`. Locked by a regression test.
 - *Nested form XObjects:* **no handling required.** Measured: MuPDF flattens form XObjects, emitting their content already in outer-page coordinates with `seqno` correctly interleaved into the page's single sequence. There is no nesting for either layer to compose. Locked by a regression test.
 - *Text or shapes covered by a raster image:* image paint order is not recoverable (see the `KNOWN LIMITATION` under Domain Model) — must yield `UNCERTAIN`, not `CLEAN`.
 - *`seqno` tie between a candidate shape and a covered span:* order is genuinely ambiguous, so the verdict must be `UNCERTAIN`. Comparison uses strict `<`; an ambiguous order must never produce an accusation.
@@ -273,7 +239,7 @@ There is no `confidence_score`. Each finding carries the measurements it was der
 - *Text repainted after its cover* (presentation slide builds): not a leak — the identical text is visible on the page. See [DECISIONS.md](./DECISIONS.md).
 - *A path carrying more than 200 rectangles:* `KNOWN LIMITATION` — skipped as artwork. The frame rule is pairwise within a path, so an uncapped scan is quadratic on a file that passes every size cap. A redaction is one rectangle drawn on its own; a path with hundreds is a heatmap or a shaded table.
 - *Non-rectangular filled paths:* `KNOWN LIMITATION` — a redaction drawn as a polygon or rounded blob is not detected. Only `re` path items are considered; admitting arbitrary path bounding boxes caused 1,598 false positives. **This includes rectangles painted under a rotating or skewing `cm` transform**, which MuPDF reports as four line segments rather than an `re`.
-- *Corrupted content stream:* MuPDF recovers without raising and returns whatever it salvaged, so a mangled page can extract as empty. Detected via MuPDF's `syntax error` / `page may not be correct` warnings and reported `UNCERTAIN`; anything salvaged is still analysed, so a leak on such a page is reported *alongside* the uncertainty rather than replaced by it.
+- *Corrupted content stream:* MuPDF recovers without raising and returns whatever it salvaged, so a mangled page can extract as empty. Detected from MuPDF's **error channel** (`fz_set_error_callback`) rather than from message wording, and reported `UNCERTAIN`; anything salvaged is still analysed, so a leak on such a page is reported *alongside* the uncertainty rather than replaced by it. An earlier version substring-matched the warning text, which would have broken silently on any upstream rewording — see [DECISIONS.md](./DECISIONS.md).
 - *CropBox smaller than MediaBox:* coordinates are reported relative to the crop origin. Page dimensions come from the CropBox; no other handling is required, since spans and shapes shift together.
 - *Annotation-based redaction* (PDF `/Redact` or `/Square` annotations rather than content-stream drawing operators): **handled, post-MVP.** `/Square` needs nothing — MuPDF flattens an annotation's appearance stream into `get_drawings()` with a correct `seqno`, so those covers arrive as ordinary shapes. `/Redact` needs its own path because an unapplied mark paints nothing at all: its rectangles are extracted into `PageContent.redactions`, carrying no fill and no paint order. See DECISIONS.md. Other annotation types (`/Stamp`, opaque `/FreeText`) remain unexamined.
 - *No text layer at all (scanned image page):* the detector cannot distinguish "properly redacted" from "never had extractable text." This must surface as `Verdict.UNCERTAIN`, never `CLEAN` — reporting "clean" on a page we didn't actually check would be a false assurance, arguably worse than no tool at all.
@@ -305,7 +271,7 @@ This tool's core purpose is parsing untrusted, potentially adversarial PDF files
 
 - **Resource caps before parsing:** file-size and page-count checked from the file header/metadata *before* PyMuPDF does real work. These bound input size, not work: a 29 KB page carrying 15,000 rectangles in one path passes both and took 44 s against the pairwise frame rule. Per-path rectangle count is therefore capped as well (`_MAX_RECTS_PER_PATH`), which makes per-page cost linear in the rectangles actually drawn.
 - **No active content execution:** the tool never evaluates embedded JavaScript, form actions, or launch actions — it only reads passive text/vector geometry.
-- **Per-page fault isolation:** a malformed content stream on one page is caught and skipped with a warning; it must not crash the whole scan (also a correctness requirement, not just security).
+- **Per-page fault isolation:** a malformed content stream on one page is contained in that page's `PageContent.error`; it must not crash the whole scan (also a correctness requirement, not just security).
 - **Dependency hygiene:** PyMuPDF version pinned in `pyproject.toml`; `pip-audit` run in CI to catch known vulnerabilities in the dependency tree.
 - **No telemetry, no outbound calls** — the tool never initiates a connection to anything. `scan` opens no socket at all; `ui` binds one listening socket to `127.0.0.1` so a local browser can reach it, and even then nothing is sent outward.
 - **Local UI hardening:** loopback bind, `Host` header check against DNS rebinding, a random per-run token on `POST /scan`, size cap enforced from `Content-Length` before the body is read, uploads written to a private temp dir that is deleted afterwards, and `Content-Security-Policy: default-src 'none'`. See [DECISIONS.md](./DECISIONS.md).
@@ -317,7 +283,7 @@ This tool's core purpose is parsing untrusted, potentially adversarial PDF files
 | Non-PDF file (wrong magic bytes) | Header check in `loader.py`, before PyMuPDF is invoked | Abort with typed `LoadError` | Exit 2, clear message: "not a valid PDF file" |
 | Encrypted/password-protected PDF | PyMuPDF open-time flag | Abort with typed `LoadError` | Exit 2, message: "file is encrypted — cannot audit" |
 | Oversized file / too many pages | Size/page check before parsing | Abort with typed `LoadError` | Exit 2, message stating the configured limit and how to raise it via flags |
-| Malformed content stream on one page | Exception caught per-page in `extractor.py` | Skip that page, continue scan, log a warning | Scan completes; final report notes the skipped page explicitly (not silently) |
+| Malformed content stream on one page | Exception caught per-page in `extractor.py`, plus MuPDF's error channel | Keep whatever was salvaged and set `PageContent.error`; nothing is logged, the fault travels in the data | Scan completes; the page is reported `UNCERTAIN`, never silently `CLEAN`, and any leak found on it is reported too |
 | No text layer at all on a page (scanned image) | Zero text spans extracted for that page | Emit `Verdict.UNCERTAIN` for that page, not `CLEAN` | User is told the page couldn't be audited, not falsely reassured |
 | Unexpected internal exception during load/detect | Top-level `try/except` in `cli.py` | Print a clean error message + the exception type (not a raw traceback by default; full traceback only under `-v`) | Exit 2 |
 | Report cannot be written (bad path, unrenderable page) | `_write_report` in `cli.py` | Summary is already printed; the failure is named on stderr and the scan's own verdict stands | Exit 1 if a leak was found, otherwise 2 |

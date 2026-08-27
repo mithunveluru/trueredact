@@ -141,7 +141,7 @@
 
 **Implementation notes.**
 - Highlights are CSS-positioned overlays on an unmodified page image, not pixels drawn into it. Percentages of the rendered page need no DPI arithmetic and stay crisp at any zoom.
-- **This is the only place in the codebase where `/Rotate` matters.** The extractor works in unrotated mediabox space; the preview renders in display space. `_overlay_style` bridges them with `page.rotation_matrix`, verified against actual rendered pixel positions at 0/90/180/270 and locked by a parametrized test.
+- **This is the only place in the codebase where `/Rotate` matters.** The extractor works in unrotated, CropBox-relative space; the preview renders in display space. `_overlay_style` bridges them with `page.rotation_matrix`, verified against actual rendered pixel positions at 0/90/180/270 and locked by a parametrized test.
 - Previews are produced only for `FAKE_REDACTION` findings, and **one per page, not one per finding**. A preview exists to prove a leak; an unauditable page has nothing proven to show, and rendering every scan page of a 500-page document would produce a file nobody can open. Measured on the real corpus: 0.20–0.52 MB per report.
 
 **Dependencies.** Phase 3.
@@ -168,7 +168,7 @@
 - [x] No known false positive/negative left unaddressed or undocumented — see the `KNOWN LIMITATION` list in [TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md#core-algorithm) and [spike-notes.md](./spike-notes.md).
 
 **Two bugs found by hunting rather than by confirming.** Written up in [spike-notes.md § Phase 5 Addendum](./spike-notes.md):
-1. **A corrupted content stream was reported `CLEAN`.** MuPDF recovers silently instead of raising, so the page extracted as empty. Now detected from a narrow allowlist of MuPDF warnings; measured to add zero false uncertainty across the corpus.
+1. **A corrupted content stream was reported `CLEAN`.** MuPDF recovers silently instead of raising, so the page extracted as empty. Now detected from MuPDF's error channel rather than its message wording; measured to add zero false uncertainty across the corpus.
 2. **`PageContent.width/height` used the MediaBox** while MuPDF reports CropBox-relative coordinates. Latent (nothing consumed it yet) but wrong; fixed, and the coordinate space renamed accurately throughout.
 
 **Limitation made precise.** A rectangle painted under a rotating/skewing `cm` transform is reported as four line segments, so the "non-rectangular paths" limitation covers tilted rectangles too. Pinned by a test asserting the current behaviour, so it fails loudly if MuPDF ever changes.
@@ -201,7 +201,7 @@
 
 **Notes.**
 - `demo.sh` generates its fixtures from `generate_fixtures.py` at run time rather than using checked-in binaries, so the demo can never drift from what the test suite verifies. No `.pdf` files are committed.
-- `LICENSE` (MIT) added — declared in `pyproject.toml` since Phase 0 but the file was missing. **The copyright line reads "the trueredact authors" and should be replaced with a real name before publishing.**
+- `LICENSE` (MIT) added — declared in `pyproject.toml` since Phase 0 but the file was missing.
 - PyPI publishing remains explicit Future scope; the package installs from source.
 
 **Dependencies.** Phase 5.

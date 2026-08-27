@@ -37,7 +37,7 @@ still validated against PDFs this project generated.
 
 ## What was built
 
-A single offline Python tool, ~1,840 lines of source and ~1,667 lines of tests.
+A single offline Python tool, ~1,870 lines of source and ~1,770 lines of tests.
 
 ```text
 PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
@@ -46,16 +46,16 @@ PDF → loader (validate, cap) → extractor (PyMuPDF → domain types)
 
 | Module | Lines | Role |
 |---|---|---|
-| `core/loader.py` | 79 | open + validate, enforce caps before parsing |
-| `core/extractor.py` | 307 | PyMuPDF → `PageContent`; the only PDF-aware module |
-| `core/detector.py` | 332 | the algorithm; no I/O, no PyMuPDF import |
+| `core/loader.py` | 78 | open + validate, enforce caps before parsing |
+| `core/extractor.py` | 317 | PyMuPDF → `PageContent`; the only PDF-aware module |
+| `core/detector.py` | 328 | the algorithm; no I/O, no PyMuPDF import |
 | `core/models.py` | 152 | frozen dataclasses shared by both sides |
 | `core/report_json.py` | 61 | the external data contract |
-| `core/report_html.py` | 284 | self-contained visual report |
-| `cli.py` | 229 | argument parsing, orchestration, exit codes |
-| `web.py` | 395 | loopback drag-and-drop UI; stdlib `http.server` only |
+| `core/report_html.py` | 303 | self-contained visual report |
+| `cli.py` | 228 | argument parsing, orchestration, exit codes |
+| `web.py` | 401 | loopback drag-and-drop UI; stdlib `http.server` only |
 
-162 tests, all passing; `ruff` clean. 22 fixtures, every one generated from source
+170 tests, all passing; `ruff` clean. 24 fixtures, every one generated from source
 code rather than committed as a binary. (The "128 tests" in the packaging check
 further down is not a typo — it records what that clean-room verification actually
 ran, at Phase 6.)
@@ -135,6 +135,7 @@ alternative that was rejected.
 | **No OCR.** A page with no text layer cannot be audited | Reported `UNCERTAIN`, never guessed. ~19% of real-world pages |
 | **Raster-image covers are not detected.** `get_image_info()['number']` is an index, not a paint order — measured wrong | Text substantially covered by an image is `UNCERTAIN`, not `FAKE_REDACTION` |
 | **Only rectangles count.** Non-`re` filled paths are skipped | A redaction drawn as a polygon, a rounded blob, **or a rectangle under a rotating transform** is missed |
+| **Paths above 200 rectangles are skipped as artwork** | A cover sharing one path with hundreds of other rectangles is missed. The frame rule is pairwise, so an uncapped path is quadratic on a file that passes every size cap |
 | **Only `/Redact` and `/Square` annotations are handled** | Other annotation types that could obscure text (`/Stamp`, `/FreeText` with an opaque background) are not examined |
 | **No incremental-update forensics** | A prior, un-redacted revision left in the file bytes is not detected |
 | **Single-threaded, one file per invocation** | No batch or folder scanning |
@@ -192,7 +193,7 @@ is nothing".
 1. **`seqno` over a hand-written content-stream parser** — measured, not assumed;
    saved implementing a chunk of a PDF interpreter to solve a 0.07% problem the
    area filter already excludes.
-2. **The detector is pure.** No I/O, no PyMuPDF import. 48 of its tests use plain
+2. **The detector is pure.** No I/O, no PyMuPDF import. 43 of its tests use plain
    Python objects. When an integration test fails, the bug is in extraction — that
    separation paid for itself repeatedly.
 3. **`ShapeObject` means "a solid filled rectangle as actually painted"** —
@@ -223,14 +224,18 @@ Honest inventory, worst first.
    0.52 MB, and previews are per-page and leak-only), but a document with hundreds
    of genuinely flagged pages would produce a very large file. Deliberately not
    capped: no measurement justifies a limit yet.
-3. ~~**`--json` and `--html` share one error handler.**~~ Fixed — the message now
+3. **`_MAX_RECTS_PER_PATH = 200` is a bound, not a measurement.** It was chosen
+   from the shape of the cost curve and the observation that a redaction is one
+   rectangle, not from a corpus distribution of rectangles-per-path. Re-deriving it
+   against the survey corpus would turn a defensible guess into a number.
+4. ~~**`--json` and `--html` share one error handler.**~~ Fixed — the message now
    names the format, asserted by test.
-4. ~~**`PageContent.width`/`height` are unconsumed.**~~ Fixed by deletion, not by
+5. ~~**`PageContent.width`/`height` are unconsumed.**~~ Fixed by deletion, not by
    finding them a consumer. The CropBox-vs-MediaBox claim they used to carry is
    now pinned by the cropped-page coordinate assertions instead.
-5. **No test exercises the real size/page caps at scale** — only that they trigger.
+6. **No test exercises the real size/page caps at scale** — only that they trigger.
    Left alone: the threshold logic *is* what a test can check.
-6. **Extraction is serialized across threads** by the diagnostics lock. Correct, but
+7. **Extraction is serialized across threads** by the diagnostics lock. Correct, but
    it means page-level parallelism would gain nothing while that stands. Per-file
    parallelism (the natural first optimization if batch scanning arrives) is
    unaffected, since each process gets its own MuPDF context.
@@ -280,10 +285,16 @@ nothing to say.
 
 **Verified, not asserted:**
 
-- **No network capability.** Grepped: no `socket`, `urllib`, `http`, `requests`,
-  or any transport import anywhere in `src/`. The complete import surface is
-  `argparse`, `base64`, `html`, `json`, `sys`, `traceback`, `dataclasses`,
-  `datetime`, `enum`, `pathlib`, `collections.abc`, and `pymupdf`.
+- **No outbound network capability.** Grepped: nothing in `src/` initiates a
+  connection — no `requests`, no `urllib.request`, no client socket. `scan` opens
+  no socket at all. `web.py` is the one networked module: it imports
+  `http.server`, `urllib.parse` (parsing only) and `webbrowser`, and binds one
+  *listening* socket to `127.0.0.1`. The complete import surface is `argparse`,
+  `base64`, `collections.abc`, `contextlib`, `dataclasses`, `datetime`, `enum`,
+  `html`, `http.server`, `json`, `pathlib`, `secrets`, `sys`, `tempfile`,
+  `threading`, `traceback`, `urllib.parse`, `webbrowser`, and `pymupdf`.
+  The guarantee, stated precisely: **the tool never initiates an outbound
+  connection.** See DECISIONS.md.
 - **No dynamic execution.** No `eval`, `exec`, `subprocess`, `os.system`,
   `__import__`.
 - **Dependency audit clean.** `pip-audit` reports **zero known vulnerabilities in
@@ -357,7 +368,7 @@ runtime dependency, no framework, no persistence, no network, no concurrency, no
 plugin system, no configuration layer. Every abstraction present is load-bearing.
 
 The one structural decision that carried the most weight is the **purity of the
-detector**. Because it imports nothing and touches no I/O, its 48 unit tests run on
+detector**. Because it imports nothing and touches no I/O, its 43 unit tests run on
 plain Python objects in milliseconds, and every ambiguity in PDF semantics — clips,
 fill rules, frames, coordinate spaces, rotation — was forced into the extractor
 where it belongs. When 1,598 false positives appeared, the fix was localized to
@@ -392,16 +403,17 @@ What supports that:
   so a user can confirm it in seconds without trusting the tool.
 - It refuses to guess. Unauditable pages get `UNCERTAIN` and a distinct exit code
   rather than a false all-clear.
-- It cannot leak the document being audited, because it has no code path that opens
-  a socket.
+- It cannot leak the document being audited: no code path initiates an outbound
+  connection. `scan` opens no socket at all, and `ui` only binds one to loopback.
 
 The caveat, stated as plainly as I can:
 
 > **A `FAKE_REDACTION` result is strong evidence. A clean result is weak evidence.**
 > Recall has been demonstrated only against PDFs this project generated. The tool
 > has never been shown to catch a fake redaction made by a human with real
-> redaction software, and it is blind by construction to image covers, annotation
-> redactions, tilted boxes, and leftover incremental-update revisions.
+> redaction software, and it is blind by construction to image covers, tilted
+> boxes, annotation types other than `/Redact` and `/Square`, and leftover
+> incremental-update revisions.
 
 So: **trustworthy as a positive detector, not yet trustworthy as a clean bill of
 health.** It should be described to users that way — "this finds the most common
