@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # PyMuPDF is hard-pinned for detection correctness, so a bump is a deliberate
+  # decision that needs the test suite to pass. Dependabot raises it; a human takes it.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

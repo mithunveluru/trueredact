@@ -147,8 +147,10 @@ there.
 
 The tool parses untrusted PDFs with MuPDF, a large C library — that is its real
 attack surface, and no Python-side care changes it. The dependency is version-pinned
-and audited in CI (`pip-audit`, currently zero known vulnerabilities). If you are
-auditing documents from an untrusted source, run this inside a container or VM.
+and audited in CI (`pip-audit`). If you are auditing documents from an untrusted
+source, run this inside a container or VM.
+
+To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## Development
 
