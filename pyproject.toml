@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     # Hard-pinned deliberately: detection correctness depends on MuPDF's paint-order
     # and geometry behaviour, so a floating version could silently change verdicts.
-    "pymupdf==1.28.2",
+    "pymupdf==2.0",
 ]
 
 [project.optional-dependencies]
